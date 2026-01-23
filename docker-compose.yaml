@@ -6,14 +6,19 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5000:8080"
-    # depends_on:
-    #   - database
+    depends_on:
+      - database
 
-# Setup database service based on the approach being used
-  # database:
-  #   image: image-name
-  #   container_name: name
-  #   ports:
-  #     - "port:port"
-  #   environment:
-  #     - name=value
+  database:
+    image: arangodb:3.12.7.1
+    container_name: arangodb
+    platform: linux/arm64/v8
+    ports:
+      - "${DB_PORT}:8529"
+    environment:
+      - ARANGO_ROOT_PASSWORD=${ARANGO_ROOT_PASSWORD}
+    volumes:
+      - arangodb_data:/var/lib/arangodb3
+
+volumes:
+  arangodb_data:
