@@ -1,0 +1,19 @@
+services:
+  api:
+    image: ebenezer-backend
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:8080"
+    # depends_on:
+    #   - database
+
+# Setup database service based on the approach being used
+  # database:
+  #   image: image-name
+  #   container_name: name
+  #   ports:
+  #     - "port:port"
+  #   environment:
+  #     - name=value
