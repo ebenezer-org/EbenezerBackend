@@ -8,6 +8,10 @@ services:
       - "5000:8080"
     depends_on:
       - database
+    environment:
+      - ArangoDb__User=root
+      - ArangoDb__Password=${ARANGO_ROOT_PASSWORD}
+      - ArangoDb__Host=database
 
   database:
     image: arangodb:3.12.7.1
