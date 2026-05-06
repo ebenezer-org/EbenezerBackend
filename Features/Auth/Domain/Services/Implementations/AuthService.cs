@@ -19,7 +19,6 @@ public class AuthService(
         
         var userEntity = new UserEntity()
         {
-            CreatedAt = DateTime.UtcNow,
             FullName = fullName,
             Email = email,
             PasswordHash = password,

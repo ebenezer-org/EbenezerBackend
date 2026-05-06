@@ -17,4 +17,10 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Features\User\Data\" />
+    <Folder Include="Features\User\Domain\" />
+    <Folder Include="Features\User\Presentation\DTOs\" />
+  </ItemGroup>
+
 </Project>

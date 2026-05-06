@@ -16,7 +16,7 @@ public class AuthController(IAuthService authService) : ControllerBase
         
         var response = new RegisterResponseDto(token);
         
-        return CreatedAtAction(string.Empty, response);
+        return Created($"/user/{dto.Username}", response);
     }
 
     [HttpPost("login")]
