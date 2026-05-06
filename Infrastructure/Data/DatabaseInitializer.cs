@@ -1,10 +1,13 @@
-﻿using ArangoDBNetStandard.CollectionApi.Models;
+﻿using ArangoDBNetStandard;
+using ArangoDBNetStandard.CollectionApi.Models;
 using ArangoDBNetStandard.DatabaseApi.Models;
+using ArangoDBNetStandard.IndexApi.Models;
+using ArangoDBNetStandard.Transport.Http;
 
 namespace EbenezerBackend.Infrastructure.Data;
 
 public class DatabaseInitializer(
-    ArangoDbContext context,
+    IArangoDBClient client,
     ArangoDbSettings settings,
     ILogger<DatabaseInitializer> logger)
 {
@@ -12,6 +15,15 @@ public class DatabaseInitializer(
     {
         const int maxRetries = 20;
         const int retryDelaySeconds = 5;
+        
+        var systemTransport = HttpApiTransport.UsingBasicAuth(
+            new Uri($"{settings.Protocol}://{settings.Host}:{settings.Port}"),
+            "_system",
+            settings.User,
+            settings.Password
+        );
+        
+        var systemArangoClient = new ArangoDBClient(systemTransport);
 
         for (var i = 0; i < maxRetries; i++)
         {
@@ -19,25 +31,26 @@ public class DatabaseInitializer(
             {
                 logger.LogInformation($"Iniciando verificação do banco de dados. Tentativa {i+1} de {maxRetries}");
                 
-                context.Connect("_system");
-                
-                var databases = await context.Client.Database.GetDatabasesAsync();
+                var databases = await systemArangoClient.Database.GetDatabasesAsync();
 
                 if (!databases.Result.Contains(settings.DatabaseName))
                 {
-                    await context.Client.Database.PostDatabaseAsync(new PostDatabaseBody
+                    await systemArangoClient.Database.PostDatabaseAsync(new PostDatabaseBody
                     {
                         Name = settings.DatabaseName
                     });
                     logger.LogInformation($"Banco {settings.DatabaseName} criado com sucesso.");
                 }
                 
-                context.Connect(settings.DatabaseName);
-
-                await UpsertDocumentCollections();
-                await UpsertEdgeCollections();
+                var collectionsResponse = await client.Collection.GetCollectionsAsync();
+                var existingCollections = collectionsResponse.Result.Select(c => c.Name).ToList();
+                
+                await CreateCollections(existingCollections);
+                await CreateEdges(existingCollections);
+                await CreateIndexes();
 
                 logger.LogInformation("Banco de dados pronto para uso.");
+                break;
             }
             catch (Exception error)
             {
@@ -53,33 +66,72 @@ public class DatabaseInitializer(
             }
         }
     }
-
-    private async Task UpsertDocumentCollections()
+    
+    private async Task CreateCollections(List<string> existingCollections)
     {
-        await EnsureCollectionAsync("Users", CollectionType.Document);
-        await EnsureCollectionAsync("Prayers", CollectionType.Document);
-        await EnsureCollectionAsync("Comments", CollectionType.Document);
-        await EnsureCollectionAsync("Categories", CollectionType.Document);
-    }
-
-    private async Task UpsertEdgeCollections()
-    {
-        await EnsureCollectionAsync("Friendships", CollectionType.Edge);
-        await EnsureCollectionAsync("InteractsWith", CollectionType.Edge);
-        await EnsureCollectionAsync("PostedBy", CollectionType.Edge);
-    }
-
-    private async Task EnsureCollectionAsync(string name, CollectionType type)
-    {
-        var collections = await context.Client.Collection.GetCollectionsAsync();
-        if (collections.Result.All(c => c.Name != name))
+        var tasks = new List<Task>
         {
-            await context.Client.Collection.PostCollectionAsync(new PostCollectionBody
+            EnsureCollectionAsync("Users", CollectionType.Document, existingCollections),
+            EnsureCollectionAsync("Prayers", CollectionType.Document, existingCollections),
+            EnsureCollectionAsync("Comments", CollectionType.Document, existingCollections),
+            EnsureCollectionAsync("Categories", CollectionType.Document, existingCollections),
+        };
+
+        await Task.WhenAll(tasks);
+    }
+
+    private async Task CreateEdges(List<string> existingCollections)
+    {
+        var tasks = new List<Task>
+        {
+            EnsureCollectionAsync("Friendships", CollectionType.Edge, existingCollections),
+            EnsureCollectionAsync("PostedBy", CollectionType.Edge, existingCollections),
+            EnsureCollectionAsync("InteractsWith", CollectionType.Edge, existingCollections)
+        };
+
+        await Task.WhenAll(tasks);
+    }
+
+    private async Task CreateIndexes()
+    {
+        await EnsureUniqueIndexAsync("Users", ["Email"], "idx_unique_email");
+        await EnsureUniqueIndexAsync("Users", ["UserName"], "idx_unique_username");
+    }
+
+    private async Task EnsureCollectionAsync(string name, CollectionType type, List<string> existing)
+    {
+        if (!existing.Contains(name))
+        {
+            await client.Collection.PostCollectionAsync(new PostCollectionBody
             {
                 Name = name,
                 Type = type
             });
-            logger.LogInformation($"Coleção '{name}' ({type}) criada.");
+            logger.LogInformation($"Coleção '{name}' criada.");
+        }
+    }
+
+    private async Task EnsureUniqueIndexAsync(string collectionName, string[] fields, string indexName)
+    {
+        var getCollectionsQuery = new GetAllCollectionIndexesQuery
+        {
+            CollectionName = collectionName
+        };
+
+        var indexes = await client.Index.GetAllCollectionIndexesAsync(getCollectionsQuery);
+        if (indexes.Indexes.All(i => i.Name != indexName))
+        {
+            await client.Index.PostPersistentIndexAsync(
+                new PostIndexQuery
+                {
+                    CollectionName = collectionName
+                },
+                new PostPersistentIndexBody
+                {
+                    Fields = fields,
+                    Unique = true,
+                    Name = indexName
+                });
         }
     }
 }

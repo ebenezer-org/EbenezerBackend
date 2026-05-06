@@ -1,11 +1,10 @@
-﻿using EbenezerBackend.Infrastructure.Data;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+﻿using ArangoDBNetStandard;
+using ArangoDBNetStandard.Transport.Http;
+using EbenezerBackend.Infrastructure.Data;
 
-namespace EbenezerBackend.Infrastructure.Extensions;
+namespace EbenezerBackend.Infrastructure.Extensions.ServiceCollection;
 
-public static class DependencyInjectionConfig
+public static class DatabaseServicesExtensions
 {
     public static IServiceCollection AddArangoDb(this IServiceCollection services, IConfiguration configuration)
     {
@@ -13,7 +12,15 @@ public static class DependencyInjectionConfig
                              ?? new ArangoDbSettings();
         services.AddSingleton(arangoSettings);
 
-        services.AddScoped<ArangoDbContext>();
+                
+        var transport = HttpApiTransport.UsingBasicAuth(
+                            new Uri($"{arangoSettings.Protocol}://{arangoSettings.Host}:{arangoSettings.Port}"),
+                            arangoSettings.DatabaseName,
+                            arangoSettings.User,
+                            arangoSettings.Password
+                        );
+        
+        services.AddSingleton<IArangoDBClient>(new ArangoDBClient(transport));
         services.AddScoped<DatabaseInitializer>();
 
         return services;

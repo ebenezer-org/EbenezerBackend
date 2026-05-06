@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EbenezerBackend.Controllers
@@ -14,7 +15,7 @@ namespace EbenezerBackend.Controllers
         }
 
         [HttpGet(Name = "HealthCheck")]
-        public String Get()
+        public string Get()
         {
             return "Hello, World!";
         }

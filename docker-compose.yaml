@@ -9,9 +9,11 @@ services:
     depends_on:
       - database
     environment:
-      - ArangoDb__User=root
-      - ArangoDb__Password=${ARANGO_ROOT_PASSWORD}
+      - ArangoDb__User=${ARANGODB_USER}
       - ArangoDb__Host=database
+      - ArangoDb__Password=${ARANGODB_PASSWORD}
+    env_file:
+      - .env
 
   database:
     image: arangodb:3.12.7.1
@@ -20,7 +22,7 @@ services:
     ports:
       - "${DB_PORT}:8529"
     environment:
-      - ARANGO_ROOT_PASSWORD=${ARANGO_ROOT_PASSWORD}
+      - ARANGO_ROOT_PASSWORD=${ARANGODB_PASSWORD}
     volumes:
       - arangodb_data:/var/lib/arangodb3
 
