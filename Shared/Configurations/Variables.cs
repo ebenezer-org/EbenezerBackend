@@ -1,3 +1,4 @@
+using System;
 using EbenezerBackend.Shared.Configurations.Interfaces;
 
 namespace EbenezerBackend.Shared.Configurations;

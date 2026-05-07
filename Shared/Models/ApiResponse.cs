@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace EbenezerBackend.Shared.Models;
 
 public class ApiResponse<T>

@@ -1,6 +1,9 @@
 using EbenezerBackend.Infrastructure.Extensions.ServiceCollection;
 using EbenezerBackend.Infrastructure.Middleware;
 using EbenezerBackend.Shared.Configurations;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 

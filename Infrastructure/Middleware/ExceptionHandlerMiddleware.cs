@@ -1,7 +1,12 @@
+using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
+using System.Threading.Tasks;
 using EbenezerBackend.Shared.Exceptions;
 using EbenezerBackend.Shared.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 namespace EbenezerBackend.Infrastructure.Middleware;
 
