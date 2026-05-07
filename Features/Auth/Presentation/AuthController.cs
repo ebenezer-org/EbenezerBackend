@@ -13,7 +13,7 @@ public class AuthController(IAuthService authService) : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<RegisterResponseDto>> Register(RegisterRequestDto dto)
     {
-        var token = await authService.RegisterAsync(dto.Username, dto.FullName, dto.Email, dto.Password);
+        var token = await authService.RegisterAsync(dto.Username, dto.Email, dto.Password);
         
         var response = new RegisterResponseDto(token);
         

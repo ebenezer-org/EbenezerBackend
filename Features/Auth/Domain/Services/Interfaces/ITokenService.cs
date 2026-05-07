@@ -4,5 +4,5 @@ namespace EbenezerBackend.Features.Auth.Domain.Services.Interfaces;
 
 public interface ITokenService
 {
-    string GenerateToken(UserEntity user);
+    string GenerateToken(AuthUserEntity authUser);
 }

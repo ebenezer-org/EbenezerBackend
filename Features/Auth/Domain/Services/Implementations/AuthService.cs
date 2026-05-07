@@ -9,18 +9,17 @@ namespace EbenezerBackend.Features.Auth.Domain.Services.Implementations;
 
 public class AuthService(
     IAuthRepository repository,
-    IPasswordHasher<UserEntity> hasher,
+    IPasswordHasher<AuthUserEntity> hasher,
     ITokenService tokenService) : IAuthService
 {
-    public async Task<string> RegisterAsync(string userName, string fullName, string email, string password)
+    public async Task<string> RegisterAsync(string userName, string email, string password)
     {
         var userExists = await repository.UserExistsByUserNameOrEmail(userName, email);
 
         if (userExists) throw new UserNameOrEmailAlreadyRegisteredException();
         
-        var userEntity = new UserEntity()
+        var userEntity = new AuthUserEntity()
         {
-            FullName = fullName,
             Email = email,
             PasswordHash = password,
             UserName = userName

@@ -12,14 +12,13 @@ namespace EbenezerBackend.Features.Auth.Domain.Services.Implementations;
 
 public class TokenService(IVariables variables) : ITokenService
 {
-    public string GenerateToken(UserEntity user)
+    public string GenerateToken(AuthUserEntity authUser)
     {
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, user.Id),
-            new(ClaimTypes.Name, user.UserName ?? ""),
-            new(ClaimTypes.Email, user.Email ?? ""),
-            new("fullName", user.FullName)
+            new(ClaimTypes.NameIdentifier, authUser.Id),
+            new(ClaimTypes.Name, authUser.UserName ?? ""),
+            new(ClaimTypes.Email, authUser.Email ?? ""),
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(variables.JwtSecretKey));

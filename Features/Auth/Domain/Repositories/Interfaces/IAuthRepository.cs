@@ -5,7 +5,7 @@ namespace EbenezerBackend.Features.Auth.Domain.Repositories.Interfaces;
 
 public interface IAuthRepository
 {
-    Task<UserEntity> RegisterUserAsync(UserEntity user);
-    Task<UserEntity?> FindByUserName(string userName);
+    Task<AuthUserEntity> RegisterUserAsync(AuthUserEntity authUser);
+    Task<AuthUserEntity?> FindByUserName(string userName);
     Task<bool> UserExistsByUserNameOrEmail(string userName, string email);
 }

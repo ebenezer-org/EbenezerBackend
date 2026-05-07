@@ -9,7 +9,7 @@ public static class IdentityServiceExtensions
 {
     public static IServiceCollection AddCustomIdentity(this IServiceCollection services)
     {
-        services.AddIdentityCore<UserEntity>()
+        services.AddIdentityCore<AuthUserEntity>()
             .AddUserStore<AuthRepository>()
             .AddDefaultTokenProviders();
 

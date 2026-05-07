@@ -12,14 +12,14 @@ using Microsoft.AspNetCore.Identity;
 
 namespace EbenezerBackend.Features.Auth.Data;
 
-public class AuthRepository(IArangoDBClient db) : BaseRepository<UserModel>, IAuthRepository, IUserPasswordStore<UserEntity>
+public class AuthRepository(IArangoDBClient db) : BaseRepository<AuthUserModel>, IAuthRepository, IUserPasswordStore<AuthUserEntity>
 {
     // IAuthRepository methods
-    public async Task<UserEntity> RegisterUserAsync(UserEntity user)
+    public async Task<AuthUserEntity> RegisterUserAsync(AuthUserEntity authUser)
     {
-        var userModel = UserModel.FromEntity(user);
+        var userModel = AuthUserModel.FromEntity(authUser);
         
-        var response = await db.Document.PostDocumentAsync<UserModel>(
+        var response = await db.Document.PostDocumentAsync<AuthUserModel>(
             CollectionName, 
             userModel,
             new PostDocumentsQuery { ReturnNew =  true }
@@ -28,7 +28,7 @@ public class AuthRepository(IArangoDBClient db) : BaseRepository<UserModel>, IAu
         return response.New.ToEntity();
     }
 
-    public async Task<UserEntity?> FindByUserName(string userName)
+    public async Task<AuthUserEntity?> FindByUserName(string userName)
     {
         var query = 
             $@"
@@ -43,7 +43,7 @@ public class AuthRepository(IArangoDBClient db) : BaseRepository<UserModel>, IAu
             { "username", userName }
         };
 
-        var response = await db.Cursor.PostCursorAsync<UserModel>(query, bindVars);
+        var response = await db.Cursor.PostCursorAsync<AuthUserModel>(query, bindVars);
 
         var userModel = response.Result.FirstOrDefault();
 
@@ -72,50 +72,50 @@ public class AuthRepository(IArangoDBClient db) : BaseRepository<UserModel>, IAu
     }
     
     // IUserPassword methods
-    public async Task<string> GetUserIdAsync(UserEntity user, CancellationToken ct) 
-        => await Task.FromResult(user.Id);
+    public async Task<string> GetUserIdAsync(AuthUserEntity authUser, CancellationToken ct) 
+        => await Task.FromResult(authUser.Id);
 
-    public async Task<string?> GetUserNameAsync(UserEntity user, CancellationToken ct) 
-        => await Task.FromResult(user.UserName);
+    public async Task<string?> GetUserNameAsync(AuthUserEntity authUser, CancellationToken ct) 
+        => await Task.FromResult(authUser.UserName);
 
-    public Task SetUserNameAsync(UserEntity user, string? userName, CancellationToken ct)
+    public Task SetUserNameAsync(AuthUserEntity authUser, string? userName, CancellationToken ct)
     {
-        user.UserName = userName;
+        authUser.UserName = userName;
         return Task.CompletedTask;
     }
 
-    public async Task<string?> GetNormalizedUserNameAsync(UserEntity user, CancellationToken ct) 
-        => await Task.FromResult(user.NormalizedUserName);
+    public async Task<string?> GetNormalizedUserNameAsync(AuthUserEntity authUser, CancellationToken ct) 
+        => await Task.FromResult(authUser.NormalizedUserName);
 
-    public Task SetNormalizedUserNameAsync(UserEntity user, string? normalizedName, CancellationToken ct)
+    public Task SetNormalizedUserNameAsync(AuthUserEntity authUser, string? normalizedName, CancellationToken ct)
     {
-        user.NormalizedUserName = normalizedName;
+        authUser.NormalizedUserName = normalizedName;
         return Task.CompletedTask;
     }
 
-    public async Task<IdentityResult> CreateAsync(UserEntity user, CancellationToken ct)
+    public async Task<IdentityResult> CreateAsync(AuthUserEntity authUser, CancellationToken ct)
     {
-        var userModel = UserModel.FromEntity(user);
+        var userModel = AuthUserModel.FromEntity(authUser);
         
         await db.Document.PostDocumentAsync($"{CollectionName}", userModel, token: ct);
         return IdentityResult.Success;
     }
 
-    public async Task<IdentityResult> UpdateAsync(UserEntity user, CancellationToken ct)
+    public async Task<IdentityResult> UpdateAsync(AuthUserEntity authUser, CancellationToken ct)
     {
-        var userModel = UserModel.FromEntity(user);
+        var userModel = AuthUserModel.FromEntity(authUser);
         
         await db.Document.PutDocumentAsync($"{CollectionName}", userModel.Id, userModel, token: ct);
         return IdentityResult.Success;
     }
 
-    public async Task<UserEntity?> FindByIdAsync(string userId, CancellationToken ct)
+    public async Task<AuthUserEntity?> FindByIdAsync(string userId, CancellationToken ct)
     {
-        var response = await db.Document.GetDocumentAsync<UserEntity>($"{CollectionName}", userId, token: ct);
+        var response = await db.Document.GetDocumentAsync<AuthUserEntity>($"{CollectionName}", userId, token: ct);
         return response;
     }
 
-    public async Task<UserEntity?> FindByNameAsync(string normalizedUserName, CancellationToken ct)
+    public async Task<AuthUserEntity?> FindByNameAsync(string normalizedUserName, CancellationToken ct)
     {
         var query = $@"
             FOR u IN {CollectionName}
@@ -129,24 +129,24 @@ public class AuthRepository(IArangoDBClient db) : BaseRepository<UserModel>, IAu
             { "username", normalizedUserName },
         };
         
-        var cursor = await db.Cursor.PostCursorAsync<UserEntity>(query, bindVars, token: ct);
+        var cursor = await db.Cursor.PostCursorAsync<AuthUserEntity>(query, bindVars, token: ct);
     
         return cursor.Result.FirstOrDefault();
     }
 
-    public Task SetPasswordHashAsync(UserEntity user, string? passwordHash, CancellationToken ct)
+    public Task SetPasswordHashAsync(AuthUserEntity authUser, string? passwordHash, CancellationToken ct)
     {
-        user.PasswordHash = passwordHash;
+        authUser.PasswordHash = passwordHash;
         return Task.CompletedTask;
     }
 
-    public Task<string?> GetPasswordHashAsync(UserEntity user, CancellationToken ct) 
-        => Task.FromResult(user.PasswordHash);
+    public Task<string?> GetPasswordHashAsync(AuthUserEntity authUser, CancellationToken ct) 
+        => Task.FromResult(authUser.PasswordHash);
 
-    public Task<bool> HasPasswordAsync(UserEntity user, CancellationToken ct) 
-        => Task.FromResult(!string.IsNullOrEmpty(user.PasswordHash));
+    public Task<bool> HasPasswordAsync(AuthUserEntity authUser, CancellationToken ct) 
+        => Task.FromResult(!string.IsNullOrEmpty(authUser.PasswordHash));
 
-    public async Task<IdentityResult> DeleteAsync(UserEntity user, CancellationToken ct)
+    public async Task<IdentityResult> DeleteAsync(AuthUserEntity authUser, CancellationToken ct)
     {
         var query = $@"
             FOR u IN {CollectionName}
@@ -156,11 +156,11 @@ public class AuthRepository(IArangoDBClient db) : BaseRepository<UserModel>, IAu
         
         var bindVars = new Dictionary<string, object>()
         {
-            { "username", user.UserName!},
-            { "user", user },
+            { "username", authUser.UserName!},
+            { "user", authUser },
         };
         
-        var cursor = await db.Cursor.PostCursorAsync<UserModel>(query, bindVars, token:ct);
+        var cursor = await db.Cursor.PostCursorAsync<AuthUserModel>(query, bindVars, token:ct);
         
         return cursor is null ? IdentityResult.Failed() : IdentityResult.Success;
     }
