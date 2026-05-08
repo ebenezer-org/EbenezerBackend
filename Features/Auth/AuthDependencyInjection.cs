@@ -4,11 +4,11 @@ using EbenezerBackend.Features.Auth.Domain.Services.Implementations;
 using EbenezerBackend.Features.Auth.Domain.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace EbenezerBackend.Infrastructure.Extensions.ServiceCollection;
+namespace EbenezerBackend.Features.Auth;
 
-public static class ServicesInjectionExtension
+public static class AuthDependencyInjection
 {
-    public static IServiceCollection AddServices(this IServiceCollection services)
+    public static IServiceCollection AddAuthModule(this IServiceCollection services)
     {
         services.AddScoped<IAuthService, AuthService>().AddScoped<IAuthRepository, AuthRepository>();
         services.AddScoped<ITokenService, TokenService>();

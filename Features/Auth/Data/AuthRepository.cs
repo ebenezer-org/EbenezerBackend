@@ -160,7 +160,7 @@ public class AuthRepository(IArangoDBClient db) : BaseRepository<AuthUserModel>,
             { "user", authUser },
         };
         
-        var cursor = await db.Cursor.PostCursorAsync<AuthUserModel>(query, bindVars, token:ct);
+        var cursor = await db.Cursor.PostCursorAsync<AuthUserModel>(query, bindVars, token: ct);
         
         return cursor is null ? IdentityResult.Failed() : IdentityResult.Success;
     }
