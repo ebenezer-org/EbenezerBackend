@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using EbenezerBackend.Features.Profile.Presentation.Dtos.Get;
 using EbenezerBackend.Features.Profile.Presentation.Dtos.Register;
 

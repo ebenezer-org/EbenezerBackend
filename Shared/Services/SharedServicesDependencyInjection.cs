@@ -1,5 +1,4 @@
 using EbenezerBackend.Shared.Services.UserContext;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace EbenezerBackend.Shared.Services;
 

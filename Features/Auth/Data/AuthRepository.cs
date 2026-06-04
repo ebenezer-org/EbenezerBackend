@@ -1,12 +1,8 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using ArangoDBNetStandard;
 using ArangoDBNetStandard.DocumentApi.Models;
 using EbenezerBackend.Features.Auth.Data.Models;
 using EbenezerBackend.Features.Auth.Domain.Entities;
-using EbenezerBackend.Features.Auth.Domain.Repositories.Interfaces;
+using EbenezerBackend.Features.Auth.Domain.Repositories;
 using EbenezerBackend.Shared;
 using Microsoft.AspNetCore.Identity;
 

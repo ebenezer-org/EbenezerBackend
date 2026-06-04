@@ -1,5 +1,3 @@
-using System;
-
 namespace EbenezerBackend.Shared.CustomAttributes;
 
 [AttributeUsage(AttributeTargets.Class)]

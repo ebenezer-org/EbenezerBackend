@@ -1,4 +1,3 @@
-using System;
 using EbenezerBackend.Shared.CustomAttributes;
 
 namespace EbenezerBackend.Shared;

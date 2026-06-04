@@ -1,7 +1,6 @@
-using System.Threading.Tasks;
 using EbenezerBackend.Features.Auth.Domain.Entities;
 using EbenezerBackend.Features.Auth.Domain.Exceptions;
-using EbenezerBackend.Features.Auth.Domain.Repositories.Interfaces;
+using EbenezerBackend.Features.Auth.Domain.Repositories;
 using EbenezerBackend.Features.Auth.Domain.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 

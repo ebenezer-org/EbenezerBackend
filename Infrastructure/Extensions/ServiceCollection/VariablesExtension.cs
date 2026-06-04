@@ -1,6 +1,5 @@
 using EbenezerBackend.Shared.Configurations;
 using EbenezerBackend.Shared.Configurations.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace EbenezerBackend.Infrastructure.Extensions.ServiceCollection;
 

@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using ArangoDBNetStandard;
+﻿using ArangoDBNetStandard;
 using ArangoDBNetStandard.CollectionApi.Models;
 using ArangoDBNetStandard.DatabaseApi.Models;
 using ArangoDBNetStandard.IndexApi.Models;
 using ArangoDBNetStandard.Transport.Http;
-using Microsoft.Extensions.Logging;
 
 namespace EbenezerBackend.Infrastructure.Data;
 

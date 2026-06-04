@@ -2,7 +2,6 @@ using EbenezerBackend.Features.Profile.Data;
 using EbenezerBackend.Features.Profile.Domain.Repositories;
 using EbenezerBackend.Features.Profile.Domain.Services.Implementations;
 using EbenezerBackend.Features.Profile.Domain.Services.Interfaces;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace EbenezerBackend.Features.Profile;
 

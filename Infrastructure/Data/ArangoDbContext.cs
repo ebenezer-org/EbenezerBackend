@@ -1,5 +1,4 @@
-﻿using System;
-using ArangoDBNetStandard;
+﻿using ArangoDBNetStandard;
 using ArangoDBNetStandard.Transport.Http;
 
 namespace EbenezerBackend.Infrastructure.Data

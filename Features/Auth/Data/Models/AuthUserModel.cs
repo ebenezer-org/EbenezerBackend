@@ -1,4 +1,3 @@
-using System;
 using EbenezerBackend.Features.Auth.Domain.Entities;
 using EbenezerBackend.Shared.CustomAttributes;
 using Newtonsoft.Json;

@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using EbenezerBackend.Features.Auth.Domain.Services.Interfaces;
 using EbenezerBackend.Features.Auth.Presentation.Dtos.Login;
 using EbenezerBackend.Features.Auth.Presentation.Dtos.Register;

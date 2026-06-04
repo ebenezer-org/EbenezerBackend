@@ -1,7 +1,5 @@
-using System;
 using System.Security.Claims;
 using EbenezerBackend.Shared.Exceptions;
-using Microsoft.AspNetCore.Http;
 
 namespace EbenezerBackend.Shared.Services.UserContext;
 public class UserContext(IHttpContextAccessor httpContextAccessor) : IUserContext
@@ -12,7 +10,7 @@ public class UserContext(IHttpContextAccessor httpContextAccessor) : IUserContex
 
     private string GetClaim(string claimType)
     {
-        var value = httpContextAccessor.HttpContext?.User?.FindFirst(claimType)?.Value;
+        var value = httpContextAccessor.HttpContext?.User.FindFirst(claimType)?.Value;
         
         if (string.IsNullOrEmpty(value))
             throw new UnauthorizedException();
