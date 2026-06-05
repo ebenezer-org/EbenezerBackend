@@ -1,3 +1,5 @@
+using System;
+
 namespace EbenezerBackend.Features.Categories.Presentation.Dtos.Update;
 
 public record UpdateCategoryResponseDto(

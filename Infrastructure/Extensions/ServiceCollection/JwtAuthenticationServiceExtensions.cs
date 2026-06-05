@@ -1,6 +1,8 @@
+using System;
 using System.Text;
 using EbenezerBackend.Shared.Configurations.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 
 namespace EbenezerBackend.Infrastructure.Extensions.ServiceCollection;

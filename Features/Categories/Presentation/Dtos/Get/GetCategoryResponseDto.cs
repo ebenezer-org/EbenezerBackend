@@ -1,3 +1,5 @@
+using System;
+
 namespace EbenezerBackend.Features.Categories.Presentation.Dtos.Get;
 
 public record GetCategoryResponseDto(

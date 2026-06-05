@@ -2,6 +2,7 @@ using EbenezerBackend.Features.Auth.Data;
 using EbenezerBackend.Features.Auth.Domain.Repositories;
 using EbenezerBackend.Features.Auth.Domain.Services.Implementations;
 using EbenezerBackend.Features.Auth.Domain.Services.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EbenezerBackend.Features.Auth;
 

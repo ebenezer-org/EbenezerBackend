@@ -1,6 +1,7 @@
 using EbenezerBackend.Features.Prayers.Data;
 using EbenezerBackend.Features.Prayers.Domain.Repositories;
 using EbenezerBackend.Features.Prayers.Domain.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EbenezerBackend.Features.Prayers;
 

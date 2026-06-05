@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using EbenezerBackend.Features.Auth.Domain.Entities;
 
 namespace EbenezerBackend.Features.Auth.Domain.Repositories;

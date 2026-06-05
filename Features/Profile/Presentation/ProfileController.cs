@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using EbenezerBackend.Features.Profile.Domain.Services.Interfaces;
 using EbenezerBackend.Features.Profile.Presentation.Dtos.Register;
 using Microsoft.AspNetCore.Authorization;

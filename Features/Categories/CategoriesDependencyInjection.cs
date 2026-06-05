@@ -1,6 +1,7 @@
 using EbenezerBackend.Features.Categories.Data;
 using EbenezerBackend.Features.Categories.Domain.Repositories;
 using EbenezerBackend.Features.Categories.Domain.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EbenezerBackend.Features.Categories;
 

@@ -1,3 +1,5 @@
+using System;
+
 namespace EbenezerBackend.Features.Prayers.Domain.Entities;
 
 public class PrayerEntity(string content)

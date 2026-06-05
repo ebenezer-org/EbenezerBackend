@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+
 namespace EbenezerBackend.Features.Auth.Domain.Services.Interfaces;
 
 public interface IAuthService

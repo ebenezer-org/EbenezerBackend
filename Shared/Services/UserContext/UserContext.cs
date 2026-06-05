@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using EbenezerBackend.Shared.Exceptions;
+using Microsoft.AspNetCore.Http;
 
 namespace EbenezerBackend.Shared.Services.UserContext;
 public class UserContext(IHttpContextAccessor httpContextAccessor) : IUserContext

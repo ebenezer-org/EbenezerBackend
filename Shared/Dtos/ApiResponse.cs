@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace EbenezerBackend.Shared.Dtos;
 
 public class ApiResponse<T>

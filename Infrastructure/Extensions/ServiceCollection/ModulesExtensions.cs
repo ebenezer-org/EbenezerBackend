@@ -2,6 +2,7 @@ using EbenezerBackend.Features.Auth;
 using EbenezerBackend.Features.Categories;
 using EbenezerBackend.Features.Prayers;
 using EbenezerBackend.Features.Profile;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EbenezerBackend.Infrastructure.Extensions.ServiceCollection;
 

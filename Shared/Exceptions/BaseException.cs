@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 
 namespace EbenezerBackend.Shared.Exceptions;
