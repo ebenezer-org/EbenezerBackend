@@ -4,5 +4,6 @@ namespace EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.Insert;
 
 public record InsertPrayerRequestDto(
     string AuthorUsername,
-    PrayerEntity PrayerEntity
+    PrayerEntity PrayerEntity,
+    string? CategoryId = null
     );

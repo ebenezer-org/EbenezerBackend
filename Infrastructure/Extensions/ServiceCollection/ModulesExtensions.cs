@@ -1,4 +1,5 @@
 using EbenezerBackend.Features.Auth;
+using EbenezerBackend.Features.Categories;
 using EbenezerBackend.Features.Prayers;
 using EbenezerBackend.Features.Profile;
 
@@ -11,6 +12,7 @@ public static class ModulesExtensions
         services
             .AddAuthModule()
             .AddProfileModule()
+            .AddCategoriesModule()
             .AddPrayersModule();
         
         return services;

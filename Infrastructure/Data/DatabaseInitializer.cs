@@ -86,6 +86,8 @@ public class DatabaseInitializer(
         {
             EnsureCollectionAsync("Friendships", CollectionType.Edge, existingCollections),
             EnsureCollectionAsync("PostedBy", CollectionType.Edge, existingCollections),
+            EnsureCollectionAsync("CreatedCategory", CollectionType.Edge, existingCollections),
+            EnsureCollectionAsync("CategorizedAs", CollectionType.Edge, existingCollections),
             EnsureCollectionAsync("InteractsWith", CollectionType.Edge, existingCollections)
         };
 
@@ -96,6 +98,7 @@ public class DatabaseInitializer(
     {
         await EnsureUniqueIndexAsync("Users", ["Email"], "idx_unique_email");
         await EnsureUniqueIndexAsync("Users", ["UserName"], "idx_unique_username");
+        await EnsurePersistentIndexAsync("Categories", ["OwnerUsername"], "idx_categories_owner_username");
     }
 
     private async Task EnsureCollectionAsync(string name, CollectionType type, List<string> existing)
@@ -130,6 +133,30 @@ public class DatabaseInitializer(
                 {
                     Fields = fields,
                     Unique = true,
+                    Name = indexName
+                });
+        }
+    }
+
+    private async Task EnsurePersistentIndexAsync(string collectionName, string[] fields, string indexName)
+    {
+        var getCollectionsQuery = new GetAllCollectionIndexesQuery
+        {
+            CollectionName = collectionName
+        };
+
+        var indexes = await client.Index.GetAllCollectionIndexesAsync(getCollectionsQuery);
+        if (indexes.Indexes.All(i => i.Name != indexName))
+        {
+            await client.Index.PostPersistentIndexAsync(
+                new PostIndexQuery
+                {
+                    CollectionName = collectionName
+                },
+                new PostPersistentIndexBody
+                {
+                    Fields = fields,
+                    Unique = false,
                     Name = indexName
                 });
         }

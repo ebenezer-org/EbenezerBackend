@@ -1,11 +1,11 @@
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Shared;
 using EbenezerBackend.Shared.Dtos;
 
-namespace EbenezerBackend.Features.Prayers.Presentation.Dtos.Create;
+namespace EbenezerBackend.Features.Prayers.Presentation.Dtos.List;
 
-public record CreatePrayerResponseDto(
+public record ListPrayerResponseDto(
     UserSafeDto Author,
     string Content,
     DateTime CreatedAt,
     PrayerCategoryResponseDto? Category
-    );
+);
