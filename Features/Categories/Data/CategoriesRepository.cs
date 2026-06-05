@@ -71,7 +71,7 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
         return response.Result.FirstOrDefault()?.ToEntity();
     }
 
-    public async Task<IReadOnlyCollection<CategoryEntity>> FindCategoriesByUsernameAsync(string username, CancellationToken ct)
+    public async Task<IReadOnlyCollection<CategoryEntity>> FindCategoriesByUsernameAsync(string username, bool includePrivate, CancellationToken ct)
     {
         var query = $@"
             LET user = FIRST(
@@ -84,13 +84,15 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
             FILTER user != null
 
             FOR category IN 1..1 OUTBOUND user._id {CreatedCategoryCollectionName}
+                FILTER @includePrivate || category.IsPublic == true
                 SORT LOWER(category.Name)
                 RETURN category
         ";
 
         var bindVars = new Dictionary<string, object>
         {
-            { "username", username }
+            { "username", username },
+            { "includePrivate", includePrivate }
         };
 
         var response = await db.Cursor.PostCursorAsync<CategoryModel>(query, bindVars, token: ct);
@@ -140,6 +142,7 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
                     { "Name", category.Name },
                     { "Description", category.Description },
                     { "ColorHex", category.ColorHex },
+                    { "IsPublic", category.IsPublic },
                     { "UpdatedAt", category.UpdatedAt }
                 }
             }

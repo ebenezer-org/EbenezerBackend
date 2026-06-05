@@ -93,7 +93,8 @@ public class DatabaseInitializer(
             EnsureCollectionAsync("PostedBy", CollectionType.Edge, existingCollections),
             EnsureCollectionAsync("CreatedCategory", CollectionType.Edge, existingCollections),
             EnsureCollectionAsync("CategorizedAs", CollectionType.Edge, existingCollections),
-            EnsureCollectionAsync("InteractsWith", CollectionType.Edge, existingCollections)
+            EnsureCollectionAsync("InteractsWith", CollectionType.Edge, existingCollections),
+            EnsureCollectionAsync("ReactedBy", CollectionType.Edge, existingCollections)
         };
 
         await Task.WhenAll(tasks);
@@ -104,6 +105,9 @@ public class DatabaseInitializer(
         await EnsureUniqueIndexAsync("Users", ["Email"], "idx_unique_email");
         await EnsureUniqueIndexAsync("Users", ["UserName"], "idx_unique_username");
         await EnsurePersistentIndexAsync("Categories", ["OwnerUsername"], "idx_categories_owner_username");
+        await EnsurePersistentIndexAsync("Categories", ["IsPublic"], "idx_categories_is_public");
+        await EnsurePersistentIndexAsync("Prayers", ["IsPublic"], "idx_prayers_is_public");
+        await EnsurePersistentIndexAsync("Prayers", ["CreatedAt"], "idx_prayers_created_at");
     }
 
     private async Task EnsureCollectionAsync(string name, CollectionType type, List<string> existing)

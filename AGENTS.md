@@ -21,6 +21,7 @@ O app nao deve incentivar teologia da prosperidade, triunfalismo materialista, m
 - Autenticacao: Identity/JWT conforme configuracao existente.
 - Documentacao local em desenvolvimento: OpenAPI e Scalar.
 - Containerizacao: Docker e `docker-compose.yaml`.
+- A composicao da aplicacao fica em `Program.cs`, que registra ArangoDB, Identity, JWT, servicos compartilhados e modulos por feature via `Infrastructure/Extensions/ServiceCollection/ModulesExtensions.cs`; a inicializacao do banco roda antes do pipeline em `UseArangoDbInitialization()`.
 
 Ao validar alteracoes, rode pelo menos:
 
@@ -45,6 +46,8 @@ Features/
       Exceptions/
       Repositories/
       Services/
+        Interfaces/
+        Implementations/
     Presentation/
       Dtos/
         <Endpoint>/
@@ -62,17 +65,19 @@ Regras praticas:
 - Domain entities nao devem depender de detalhes de banco ou HTTP.
 - DTOs de Presentation sao contratos da API; DTOs de Repository sao contratos internos de persistencia.
 - Cada nova feature deve registrar suas dependencias no proprio arquivo de dependency injection e ser integrada ao carregamento de modulos existente.
+- Quando um service precisar do usuario autenticado, injete `Shared/Services/UserContext/IUserContext`; os services de `Categories`, `Prayers` e `Profile` usam esse contrato em vez de ler claims diretamente no controller.
+- Novas features devem ser conectadas em `Infrastructure/Extensions/ServiceCollection/ModulesExtensions.cs`; servicos transversais vao em `Shared/Services/SharedServicesDependencyInjection.cs`.
 
 ## Diretrizes para ArangoDB
 
 Na branch atual, use ArangoDB como fonte principal de persistencia.
 
-- Use document collections para entidades principais: usuarios, pedidos de oracao, comentarios, categorias, notificacoes etc.
-- Use edge collections para relacionamentos: usuario postou pedido, amizades, seguidores se existirem, comentarios em posts, respostas a comentarios, reacoes, categorias vinculadas a posts.
+- Use document collections para entidades principais como `Users`, `Prayers`, `Comments` e `Categories`.
+- Use edge collections para relacionamentos como `PostedBy`, `CreatedCategory`, `CategorizedAs`, `Friendships` e `InteractsWith`.
 - Prefira AQL com bind variables. Nunca concatene entrada do usuario diretamente em queries.
 - Garanta que o shape retornado pela AQL corresponda exatamente ao DTO usado em `PostCursorAsync<T>()`.
-- Models persistidos precisam ter membros publicos serializaveis. Propriedades privadas nao serao enviadas corretamente ao ArangoDB.
-- Use `[JsonProperty("_key")]` ou a base model existente quando for necessario mapear `_key`.
+- Models persistidos precisam ter membros publicos serializaveis. Use `[CollectionName("...")]` nos models e `Shared/BaseRepository<TDataModel>` quando a collection precisar ser resolvida a partir do atributo; propriedades privadas nao serao enviadas corretamente ao ArangoDB.
+- Use `[JsonProperty("_key")]` ou `Infrastructure/Data/ArangoDbBaseModel.cs` quando for necessario mapear `_key`.
 - Prefira datas em UTC para novos fluxos. Se alterar codigo existente que usa `DateTime.Now`, avalie impacto de compatibilidade.
 - Em AQL, prefira sintaxe explicita e compativel com ArangoDB 3.12, por exemplo `INSERT ... INTO Collection`.
 - Quando criar documentos e arestas no mesmo fluxo, retorne dados suficientes para o service montar a resposta sem nova query desnecessaria.
@@ -170,6 +175,7 @@ Deve existir retrospectiva periodica configuravel com default e retrospectiva an
 - Ao corrigir bugs, procure a causa raiz, especialmente em serializacao, mapeamento DTO/model/entity e shape de AQL.
 - Prefira nomes claros em portugues ou ingles conforme o padrao da area existente; nao misture sem necessidade dentro do mesmo contexto.
 - Mantenha comentarios de codigo raros e objetivos.
+- Excecoes aplicacionais devem herdar de `Shared/Exceptions/BaseException.cs`; `Infrastructure/Middleware/ExceptionHandlerMiddleware.cs` transforma essas excecoes em `ApiResponse<T>` JSON e mapeia os status codes de forma padronizada.
 
 ## Diretriz de Produto
 

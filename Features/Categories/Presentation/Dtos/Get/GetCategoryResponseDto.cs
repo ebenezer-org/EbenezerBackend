@@ -8,6 +8,7 @@ public record GetCategoryResponseDto(
     string Name,
     string Description,
     string ColorHex,
+    bool IsPublic,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );

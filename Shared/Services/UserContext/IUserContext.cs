@@ -5,4 +5,6 @@ public interface IUserContext
     string Id { get; }
     string UserName { get; }
     string Email { get; }
+    bool IsAuthenticated { get; }
+    string? TryGetUserName();
 }

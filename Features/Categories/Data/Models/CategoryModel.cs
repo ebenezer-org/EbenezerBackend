@@ -12,12 +12,13 @@ public class CategoryModel : ArangoDbBaseModel, IBaseModel<CategoryModel, Catego
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string ColorHex { get; set; } = string.Empty;
+    public bool IsPublic { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
     public CategoryEntity ToEntity()
     {
-        return new CategoryEntity(OwnerUsername, Name, Description, ColorHex, Id, CreatedAt, UpdatedAt);
+        return new CategoryEntity(OwnerUsername, Name, Description, ColorHex, IsPublic, Id, CreatedAt, UpdatedAt);
     }
 
     public static CategoryModel FromEntity(CategoryEntity entity)
@@ -29,6 +30,7 @@ public class CategoryModel : ArangoDbBaseModel, IBaseModel<CategoryModel, Catego
             Name = entity.Name,
             Description = entity.Description,
             ColorHex = entity.ColorHex,
+            IsPublic = entity.IsPublic,
             CreatedAt = entity.CreatedAt,
             UpdatedAt = entity.UpdatedAt
         };

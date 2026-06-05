@@ -15,7 +15,12 @@ public class CategoriesService(ICategoriesRepository repository, IUserContext us
 {
     public async Task<CreateCategoryResponseDto> CreateCategoryAsync(CreateCategoryRequestDto request, CancellationToken ct)
     {
-        var category = new CategoryEntity(userContext.UserName, request.Name, request.Description, request.ColorHex);
+        var category = new CategoryEntity(
+            userContext.UserName,
+            request.Name,
+            request.Description,
+            request.ColorHex,
+            request.IsPublic);
         var createdCategory = await repository.CreateCategoryAsync(category, ct);
 
         return ToCreateResponse(createdCategory);
@@ -25,28 +30,47 @@ public class CategoriesService(ICategoriesRepository repository, IUserContext us
     {
         var category = await repository.FindCategoryByIdAsync(categoryId, ct);
 
-        return category is null
-            ? throw new NotFoundException("Categoria não encontrada")
-            : ToGetResponse(category);
+        if (category is null)
+        {
+            throw new NotFoundException("Categoria não encontrada");
+        }
+
+        if (category.IsPublic)
+        {
+            return ToGetResponse(category);
+        }
+
+        if (!userContext.IsAuthenticated || userContext.UserName != category.OwnerUsername)
+        {
+            throw new NotFoundException("Categoria não encontrada");
+        }
+
+        return ToGetResponse(category);
     }
 
     public async Task<IReadOnlyCollection<GetCategoryResponseDto>> GetCategoriesByUsernameAsync(string username, CancellationToken ct)
     {
-        var categories = await repository.FindCategoriesByUsernameAsync(username, ct);
+        var includePrivate = userContext.IsAuthenticated && userContext.UserName == username;
+        var categories = await repository.FindCategoriesByUsernameAsync(username, includePrivate, ct);
 
         return categories.Select(ToGetResponse).ToList();
     }
 
     public async Task<IReadOnlyCollection<GetCategoryResponseDto>> GetMyCategoriesAsync(CancellationToken ct)
     {
-        var categories = await repository.FindCategoriesByUsernameAsync(userContext.UserName, ct);
+        var categories = await repository.FindCategoriesByUsernameAsync(userContext.UserName, true, ct);
 
         return categories.Select(ToGetResponse).ToList();
     }
 
     public async Task<UpdateCategoryResponseDto> UpdateCategoryAsync(string categoryId, UpdateCategoryRequestDto request, CancellationToken ct)
     {
-        var category = new CategoryEntity(userContext.UserName, request.Name, request.Description, request.ColorHex);
+        var category = new CategoryEntity(
+            userContext.UserName,
+            request.Name,
+            request.Description,
+            request.ColorHex,
+            request.IsPublic);
         var updatedCategory = await repository.UpdateCategoryAsync(categoryId, category, ct);
 
         return updatedCategory is null
@@ -72,6 +96,7 @@ public class CategoriesService(ICategoriesRepository repository, IUserContext us
             category.Name,
             category.Description,
             category.ColorHex,
+            category.IsPublic,
             category.CreatedAt,
             category.UpdatedAt);
     }
@@ -84,6 +109,7 @@ public class CategoriesService(ICategoriesRepository repository, IUserContext us
             category.Name,
             category.Description,
             category.ColorHex,
+            category.IsPublic,
             category.CreatedAt,
             category.UpdatedAt);
     }
@@ -96,6 +122,7 @@ public class CategoriesService(ICategoriesRepository repository, IUserContext us
             category.Name,
             category.Description,
             category.ColorHex,
+            category.IsPublic,
             category.CreatedAt,
             category.UpdatedAt);
     }

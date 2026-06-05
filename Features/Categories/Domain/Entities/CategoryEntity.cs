@@ -13,6 +13,7 @@ public class CategoryEntity
     public string Name { get; private set; }
     public string Description { get; private set; }
     public string ColorHex { get; private set; }
+    public bool IsPublic { get; private set; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; private set; }
 
@@ -21,6 +22,7 @@ public class CategoryEntity
         string name,
         string description,
         string colorHex,
+        bool isPublic,
         string? id = null,
         DateTime? createdAt = null,
         DateTime? updatedAt = null)
@@ -30,15 +32,17 @@ public class CategoryEntity
         Name = ValidateName(name);
         Description = ValidateDescription(description);
         ColorHex = NormalizeColorHex(colorHex);
+        IsPublic = isPublic;
         CreatedAt = createdAt ?? DateTime.UtcNow;
         UpdatedAt = updatedAt ?? CreatedAt;
     }
 
-    public void Update(string name, string description, string colorHex)
+    public void Update(string name, string description, string colorHex, bool isPublic)
     {
         Name = ValidateName(name);
         Description = ValidateDescription(description);
         ColorHex = NormalizeColorHex(colorHex);
+        IsPublic = isPublic;
         UpdatedAt = DateTime.UtcNow;
     }
 

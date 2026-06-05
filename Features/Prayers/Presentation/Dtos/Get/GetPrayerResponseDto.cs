@@ -4,9 +4,9 @@ using EbenezerBackend.Features.Prayers.Presentation.Dtos.Shared;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Shared.AuthorResponse;
 using EbenezerBackend.Shared.Dtos;
 
-namespace EbenezerBackend.Features.Prayers.Presentation.Dtos.Create;
+namespace EbenezerBackend.Features.Prayers.Presentation.Dtos.Get;
 
-public record CreatePrayerResponseDto(
+public record GetPrayerResponseDto(
     string Id,
     UserSafeDto Author,
     string Content,
@@ -15,4 +15,5 @@ public record CreatePrayerResponseDto(
     DateTime UpdatedAt,
     IReadOnlyCollection<PrayerCategoryResponseDto> Categories,
     PrayerAuthorResponseDto? AuthorResponse
-    );
+);
+
