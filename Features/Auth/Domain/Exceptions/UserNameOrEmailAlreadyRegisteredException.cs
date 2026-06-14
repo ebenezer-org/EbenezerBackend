@@ -1,5 +1,5 @@
 using System.Net;
-using EbenezerBackend.Shared.Exceptions;
+using EbenezerBackend.Shared.Web.Exceptions;
 
 namespace EbenezerBackend.Features.Auth.Domain.Exceptions;
 

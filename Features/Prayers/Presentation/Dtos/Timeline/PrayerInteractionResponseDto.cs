@@ -1,11 +1,11 @@
 using System;
-using EbenezerBackend.Shared.Dtos;
+using EbenezerBackend.Shared.Web.Dtos;
 
 namespace EbenezerBackend.Features.Prayers.Presentation.Dtos.Timeline;
 
 public record PrayerInteractionResponseDto(
     string Type,
-    UserSafeDto User,
+    UserEssentialDto User,
     DateTime CreatedAt
 );
 

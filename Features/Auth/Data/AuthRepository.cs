@@ -8,6 +8,7 @@ using EbenezerBackend.Features.Auth.Data.Models;
 using EbenezerBackend.Features.Auth.Domain.Entities;
 using EbenezerBackend.Features.Auth.Domain.Repositories;
 using EbenezerBackend.Shared;
+using EbenezerBackend.Shared.Data;
 using Microsoft.AspNetCore.Identity;
 
 namespace EbenezerBackend.Features.Auth.Data;

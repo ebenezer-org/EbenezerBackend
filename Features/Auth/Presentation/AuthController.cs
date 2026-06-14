@@ -13,17 +13,17 @@ public class AuthController(IAuthService authService) : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<RegisterResponseDto>> Register(RegisterRequestDto dto)
     {
-        var token = await authService.RegisterAsync(dto.Username, dto.Email, dto.Password);
+        var token = await authService.RegisterAsync(dto.UserName, dto.Email, dto.Password);
         
         var response = new RegisterResponseDto(token);
         
-        return Created($"/user/{dto.Username}", response);
+        return Created($"/user/{dto.UserName}", response);
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<LoginResponseDto>> Login(LoginRequestDto dto)
     {
-        var token = await authService.LoginAsync(dto.Username, dto.Password);
+        var token = await authService.LoginAsync(dto.UserName, dto.Password);
         
         var response = new LoginResponseDto(token);
         

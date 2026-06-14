@@ -2,7 +2,7 @@ using EbenezerBackend.Docs.Scalar;
 using EbenezerBackend.Infrastructure.Extensions.ServiceCollection;
 using EbenezerBackend.Infrastructure.Middleware;
 using EbenezerBackend.Shared.Configurations;
-using EbenezerBackend.Shared.Services;
+using EbenezerBackend.Shared.Web.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,8 +10,6 @@ using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container.
 
 var variables = new Variables();
 

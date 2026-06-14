@@ -1,16 +1,15 @@
 using System;
 using EbenezerBackend.Features.Auth.Domain.Entities;
+using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.CustomAttributes;
+using EbenezerBackend.Shared.Data;
 using Newtonsoft.Json;
 
 namespace EbenezerBackend.Features.Auth.Data.Models;
 
-[CollectionName("Users")]
-public class AuthUserModel
+[CollectionName(ArangoDbCollections.Users)]
+public class AuthUserModel : ArangoDbBaseModel
 {
-    [JsonProperty("_key")]
-    public required string Id { get; set; }
-
     public required string UserName { get; set; }
     public required string Email { get; set; }
     public required string PasswordHash { get; set; }
@@ -18,7 +17,7 @@ public class AuthUserModel
     public required bool IsDeleted { get; set; }
     
     public static AuthUserModel FromEntity(AuthUserEntity entity) => new() {
-        Id = entity.Id,
+        Key = entity.Id,
         UserName = entity.UserName!,
         Email = entity.Email!,
         PasswordHash = entity.PasswordHash!,
@@ -27,7 +26,7 @@ public class AuthUserModel
     };
 
     public AuthUserEntity ToEntity() => new() {
-        Id = this.Id,
+        Id = this.Key!,
         UserName = this.UserName,
         Email =  this.Email,
         PasswordHash = this.PasswordHash,

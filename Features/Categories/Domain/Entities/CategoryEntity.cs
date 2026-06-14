@@ -8,7 +8,7 @@ public class CategoryEntity
     private const int MaxNameLength = 80;
     private const int MaxDescriptionLength = 500;
 
-    public string? Id { get; set; }
+    public string Id { get; set; }
     public string OwnerUsername { get; private set; }
     public string Name { get; private set; }
     public string Description { get; private set; }

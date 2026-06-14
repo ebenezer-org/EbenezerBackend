@@ -2,10 +2,11 @@ using System;
 using EbenezerBackend.Features.Categories.Domain.Entities;
 using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.CustomAttributes;
+using EbenezerBackend.Shared.Data;
 
 namespace EbenezerBackend.Features.Categories.Data.Models;
 
-[CollectionName("Categories")]
+[CollectionName(ArangoDbCollections.Categories)]
 public class CategoryModel : ArangoDbBaseModel, IBaseModel<CategoryModel, CategoryEntity>
 {
     public string OwnerUsername { get; set; } = string.Empty;
@@ -25,7 +26,7 @@ public class CategoryModel : ArangoDbBaseModel, IBaseModel<CategoryModel, Catego
     {
         return new CategoryModel
         {
-            Id = entity.Id,
+            Key = entity.Id,
             OwnerUsername = entity.OwnerUsername,
             Name = entity.Name,
             Description = entity.Description,

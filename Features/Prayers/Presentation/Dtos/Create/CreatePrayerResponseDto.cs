@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Shared;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Shared.AuthorResponse;
-using EbenezerBackend.Shared.Dtos;
+using EbenezerBackend.Shared.Web.Dtos;
 
 namespace EbenezerBackend.Features.Prayers.Presentation.Dtos.Create;
 
 public record CreatePrayerResponseDto(
     string Id,
-    UserSafeDto Author,
+    UserEssentialDto Author,
     string Content,
     bool IsPublic,
     DateTime CreatedAt,

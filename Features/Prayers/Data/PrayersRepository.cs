@@ -11,25 +11,18 @@ using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.Insert;
 using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.List;
 using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.Timeline;
 using EbenezerBackend.Shared;
-using EbenezerBackend.Shared.Exceptions;
+using EbenezerBackend.Shared.Data;
+using EbenezerBackend.Shared.Web.Exceptions;
 
 namespace EbenezerBackend.Features.Prayers.Data;
 
 public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>, IPrayersRepository
 {
-    private const string UsersCollectionName = "Users";
-    private const string CategoriesCollectionName = "Categories";
-    private const string PostedByCollectionName = "PostedBy";
-    private const string CategorizedAsCollectionName = "CategorizedAs";
-    private const string InteractsWithCollectionName = "InteractsWith";
-    private const string FriendshipsCollectionName = "Friendships";
-    private const string ReactedByCollectionName = "ReactedBy";
-
     public async Task<InsertPrayerResponseDto> InsertPrayerAsync(InsertPrayerRequestDto request, CancellationToken ct)
     {
         var query = $@"
             LET user = FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @userName
                     LIMIT 1
                     RETURN u
@@ -38,7 +31,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             FILTER user != null
 
             LET categories = LENGTH(@categoryIds) == 0 ? [] : (
-                FOR currentCategory IN {CategoriesCollectionName}
+                FOR currentCategory IN {ArangoDbCollections.Categories}
                     FILTER currentCategory._key IN @categoryIds || currentCategory._id IN @categoryIds
                     FILTER currentCategory.IsPublic == true || currentCategory.OwnerUsername == @userName
                     RETURN currentCategory
@@ -53,7 +46,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                 _from: user._id,
                 _to: newPrayer._id,
                 CreatedAt: DATE_ISO8601(DATE_NOW())
-            }} INTO {PostedByCollectionName}
+            }} INTO {ArangoDbEdges.PostedBy}
 
             LET categoryLinks = (
                 FOR category IN categories
@@ -61,7 +54,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                         _from: newPrayer._id,
                         _to: category._id,
                         CreatedAt: DATE_ISO8601(DATE_NOW())
-                    }} INTO {CategorizedAsCollectionName}
+                    }} INTO {ArangoDbEdges.CategorizedAs}
                     RETURN NEW
             )
 
@@ -100,7 +93,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
     {
         var query = $@"
             LET viewer = @viewerUserName == null || @viewerUserName == '' ? null : FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @viewerUserName
                     LIMIT 1
                     RETURN u
@@ -108,7 +101,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
 
             FOR prayer IN {CollectionName}
                 LET author = FIRST(
-                    FOR user IN 1..1 INBOUND prayer._id {PostedByCollectionName}
+                    FOR user IN 1..1 INBOUND prayer._id {ArangoDbEdges.PostedBy}
                         LIMIT 1
                         RETURN user
                 )
@@ -117,7 +110,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                 FILTER prayer.IsPublic == true || (viewer != null && author._id == viewer._id)
 
                 LET categories = (
-                    FOR category IN 1..1 OUTBOUND prayer._id {CategorizedAsCollectionName}
+                    FOR category IN 1..1 OUTBOUND prayer._id {ArangoDbEdges.CategorizedAs}
                         FILTER category.IsPublic == true || (viewer != null && category.OwnerUsername == @viewerUserName)
                         RETURN {{
                             Id: category._key,
@@ -149,7 +142,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
     {
         var query = $@"
             LET viewer = @viewerUserName == null || @viewerUserName == '' ? null : FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @viewerUserName
                     LIMIT 1
                     RETURN u
@@ -165,7 +158,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             FILTER prayer != null
 
             LET author = FIRST(
-                FOR user IN 1..1 INBOUND prayer._id {PostedByCollectionName}
+                FOR user IN 1..1 INBOUND prayer._id {ArangoDbEdges.PostedBy}
                     LIMIT 1
                     RETURN user
             )
@@ -174,7 +167,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             FILTER prayer.IsPublic == true || (viewer != null && author._id == viewer._id)
 
             LET categories = (
-                FOR category IN 1..1 OUTBOUND prayer._id {CategorizedAsCollectionName}
+                FOR category IN 1..1 OUTBOUND prayer._id {ArangoDbEdges.CategorizedAs}
                     FILTER category.IsPublic == true || (viewer != null && category.OwnerUsername == @viewerUserName)
                     RETURN {{
                         Id: category._key,
@@ -211,7 +204,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
     {
         var query = $@"
             LET user = FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @userName
                     LIMIT 1
                     RETURN u
@@ -223,7 +216,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                 FOR currentPrayer IN {CollectionName}
                     FILTER currentPrayer._key == @prayerId || currentPrayer._id == @prayerId
                     LET ownerLink = FIRST(
-                        FOR edge IN {PostedByCollectionName}
+                        FOR edge IN {ArangoDbEdges.PostedBy}
                             FILTER edge._from == user._id && edge._to == currentPrayer._id
                             LIMIT 1
                             RETURN edge
@@ -235,7 +228,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             FILTER prayerToUpdate != null
 
             LET categories = LENGTH(@categoryIds) == 0 ? [] : (
-                FOR currentCategory IN {CategoriesCollectionName}
+                FOR currentCategory IN {ArangoDbCollections.Categories}
                     FILTER currentCategory._key IN @categoryIds || currentCategory._id IN @categoryIds
                     FILTER currentCategory.IsPublic == true || currentCategory.OwnerUsername == @userName
                     RETURN currentCategory
@@ -247,9 +240,9 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             LET updatedPrayer = NEW
 
             LET removedLinks = (
-                FOR edge IN {CategorizedAsCollectionName}
+                FOR edge IN {ArangoDbEdges.CategorizedAs}
                     FILTER edge._from == updatedPrayer._id
-                    REMOVE edge IN {CategorizedAsCollectionName}
+                    REMOVE edge IN {ArangoDbEdges.CategorizedAs}
                     RETURN OLD
             )
 
@@ -259,7 +252,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                         _from: updatedPrayer._id,
                         _to: category._id,
                         CreatedAt: DATE_ISO8601(DATE_NOW())
-                    }} INTO {CategorizedAsCollectionName}
+                    }} INTO {ArangoDbEdges.CategorizedAs}
                     RETURN NEW
             )
 
@@ -304,7 +297,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
     {
         var query = $@"
             LET user = FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @userName
                     LIMIT 1
                     RETURN u
@@ -316,7 +309,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                 FOR currentPrayer IN {CollectionName}
                     FILTER currentPrayer._key == @prayerId || currentPrayer._id == @prayerId
                     LET ownerLink = FIRST(
-                        FOR edge IN {PostedByCollectionName}
+                        FOR edge IN {ArangoDbEdges.PostedBy}
                             FILTER edge._from == user._id && edge._to == currentPrayer._id
                             LIMIT 1
                             RETURN edge
@@ -328,23 +321,23 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             FILTER prayerToDelete != null
 
             LET removedOwnership = (
-                FOR edge IN {PostedByCollectionName}
+                FOR edge IN {ArangoDbEdges.PostedBy}
                     FILTER edge._to == prayerToDelete._id
-                    REMOVE edge IN {PostedByCollectionName}
+                    REMOVE edge IN {ArangoDbEdges.PostedBy}
                     RETURN OLD
             )
 
             LET removedCategories = (
-                FOR edge IN {CategorizedAsCollectionName}
+                FOR edge IN {ArangoDbEdges.CategorizedAs}
                     FILTER edge._from == prayerToDelete._id
-                    REMOVE edge IN {CategorizedAsCollectionName}
+                    REMOVE edge IN {ArangoDbEdges.CategorizedAs}
                     RETURN OLD
             )
 
             LET removedInteractions = (
-                FOR edge IN {InteractsWithCollectionName}
+                FOR edge IN {ArangoDbEdges.InteractsWith}
                     FILTER edge._to == prayerToDelete._id
-                    REMOVE edge IN {InteractsWithCollectionName}
+                    REMOVE edge IN {ArangoDbEdges.InteractsWith}
                     RETURN OLD
             )
 
@@ -371,7 +364,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
     {
         var query = $@"
             LET user = FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @userName
                     LIMIT 1
                     RETURN u
@@ -383,7 +376,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                 FOR currentPrayer IN {CollectionName}
                     FILTER currentPrayer._key == @prayerId || currentPrayer._id == @prayerId
                     LET ownerLink = FIRST(
-                        FOR edge IN {PostedByCollectionName}
+                        FOR edge IN {ArangoDbEdges.PostedBy}
                             FILTER edge._from == user._id && edge._to == currentPrayer._id
                             LIMIT 1
                             RETURN edge
@@ -402,7 +395,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             LET updatedPrayer = NEW
 
             LET categories = (
-                FOR category IN 1..1 OUTBOUND updatedPrayer._id {CategorizedAsCollectionName}
+                FOR category IN 1..1 OUTBOUND updatedPrayer._id {ArangoDbEdges.CategorizedAs}
                     RETURN {{
                         Id: category._key,
                         Name: category.Name,
@@ -436,7 +429,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
     {
         var query = $@"
             LET user = FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @userName
                     LIMIT 1
                     RETURN u
@@ -452,7 +445,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             FILTER user != null && prayer != null
 
             LET author = FIRST(
-                FOR u IN 1..1 INBOUND prayer._id {PostedByCollectionName}
+                FOR u IN 1..1 INBOUND prayer._id {ArangoDbEdges.PostedBy}
                     LIMIT 1
                     RETURN u
             )
@@ -462,20 +455,20 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             FILTER author.UserName != @userName
 
             LET reaction = FIRST(
-                FOR edge IN {ReactedByCollectionName}
+                FOR edge IN {ArangoDbEdges.ReactedBy}
                     FILTER edge._from == user._id && edge._to == prayer._id
                     LIMIT 1
                     RETURN edge
             )
 
             IF reaction != null THEN
-                REMOVE reaction IN {ReactedByCollectionName}
+                REMOVE reaction IN {ArangoDbEdges.ReactedBy}
             ELSE
                 INSERT {{
                     _from: user._id,
                     _to: prayer._id,
                     CreatedAt: DATE_ISO8601(DATE_NOW())
-                }} INTO {ReactedByCollectionName}
+                }} INTO {ArangoDbEdges.ReactedBy}
 
             RETURN {{
                 AuthorProfileModel: user,
@@ -497,6 +490,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         return response.Result.FirstOrDefault();
     }
         
+    // TODO: Substituir acesso com username para Document(@userId)
     public async Task<(IReadOnlyCollection<TimelinePrayerRepositoryResponseDto>, int TotalCount)> GetTimelineAsync(
         string viewerUserName,
         int page,
@@ -506,7 +500,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         var query = $@"
             // 1. Pega o usuário logado
             LET viewer = FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @viewerUserName
                     LIMIT 1
                     RETURN u
@@ -515,13 +509,13 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
     
             // 2. Busca Orações dos Amigos (OTIMIZADO)
             LET connectionPrayers = (
-                FOR friend IN 1..1 ANY viewer._id {FriendshipsCollectionName}
+                FOR friend IN 1..1 ANY viewer._id {ArangoDbEdges.Friendships}
                     // MÁGICA AQUI: Vai direto do amigo para as orações dele (O(1) para cada amigo)
-                    FOR prayer IN 1..1 OUTBOUND friend._id {PostedByCollectionName}
+                    FOR prayer IN 1..1 OUTBOUND friend._id {ArangoDbEdges.PostedBy}
                         FILTER prayer.IsPublic == true
                         
                         LET categories = (
-                            FOR category IN 1..1 OUTBOUND prayer._id {CategorizedAsCollectionName}
+                            FOR category IN 1..1 OUTBOUND prayer._id {ArangoDbEdges.CategorizedAs}
                                 FILTER category.IsPublic == true || category.OwnerUsername == @viewerUserName
                                 RETURN {{
                                     Id: category._key,
@@ -542,13 +536,14 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             // 3. Busca Interações nas PRÓPRIAS orações (OTIMIZADO)
             LET ownInteractions = (
                 // MÁGICA AQUI: Pega direto as orações do usuário logado
-                FOR myPrayer IN 1..1 OUTBOUND viewer._id {PostedByCollectionName}
+                FOR myPrayer IN 1..1 OUTBOUND viewer._id {ArangoDbEdges.PostedBy}
                     
                     // Usamos grafo para buscar quem interagiu!
                     LET interactions = (
-                        FOR reactor, edge IN 1..1 INBOUND myPrayer._id {InteractsWithCollectionName}
+                        FOR reactor, edge IN 1..1 INBOUND myPrayer._id {ArangoDbEdges.InteractsWith}
                             RETURN {{
                                 Type: edge.Type,
+                                Id: reactor._key,
                                 UserName: reactor.UserName,
                                 FullName: reactor.FullName,
                                 CreatedAt: edge.CreatedAt
@@ -558,7 +553,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                     FILTER LENGTH(interactions) > 0
     
                     LET categories = (
-                        FOR category IN 1..1 OUTBOUND myPrayer._id {CategorizedAsCollectionName}
+                        FOR category IN 1..1 OUTBOUND myPrayer._id {ArangoDbEdges.CategorizedAs}
                             RETURN {{
                                 Id: category._key,
                                 Name: category.Name,
@@ -623,7 +618,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
     {
         var query = $@"
             LET viewer = @viewerUserName == null || @viewerUserName == '' ? null : FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @viewerUserName
                     LIMIT 1
                     RETURN u
@@ -631,7 +626,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
 
             FOR prayer IN {CollectionName}
                 LET author = FIRST(
-                    FOR user IN 1..1 INBOUND prayer._id {PostedByCollectionName}
+                    FOR user IN 1..1 INBOUND prayer._id {ArangoDbEdges.PostedBy}
                         LIMIT 1
                         RETURN user
                 )
@@ -642,7 +637,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                 FILTER @text == null || @text == '' || CONTAINS(LOWER(prayer.Content), LOWER(@text))
 
                 LET categories = (
-                    FOR category IN 1..1 OUTBOUND prayer._id {CategorizedAsCollectionName}
+                    FOR category IN 1..1 OUTBOUND prayer._id {ArangoDbEdges.CategorizedAs}
                         FILTER category.IsPublic == true || (viewer != null && category.OwnerUsername == @viewerUserName)
                         RETURN {{
                             Id: category._key,
@@ -652,7 +647,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                 )
 
                 FILTER @categoryId == null || @categoryId == '' || LENGTH(
-                    FOR category IN 1..1 OUTBOUND prayer._id {CategorizedAsCollectionName}
+                    FOR category IN 1..1 OUTBOUND prayer._id {ArangoDbEdges.CategorizedAs}
                         FILTER category._key == @categoryId || category._id == @categoryId
                         FILTER category.IsPublic == true || (viewer != null && category.OwnerUsername == @viewerUserName)
                         RETURN 1

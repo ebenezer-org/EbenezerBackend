@@ -10,7 +10,7 @@ using EbenezerBackend.Features.Prayers.Presentation.Dtos.Search;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Support;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Timeline;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Update;
-using EbenezerBackend.Shared.Dtos;
+using EbenezerBackend.Shared.Web.Dtos.Pagination;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -73,12 +73,11 @@ public class PrayersController(IPrayersService prayersService) : ControllerBase
 
     [Authorize]
     [HttpGet("timeline")]
-    public async Task<ActionResult<IReadOnlyCollection<PaginatedResponseDto<TimelinePrayerResponseDto>>>> GetTimeline(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+    public async Task<ActionResult<PaginatedResponseDto<TimelinePrayerResponseDto>>> GetTimeline(
+        [FromQuery] PaginationRequestDto pagination,
         CancellationToken ct = default)
     {
-        var result = await prayersService.GetTimelineAsync(page, pageSize, ct);
+        var result = await prayersService.GetTimelineAsync(pagination.Page, pagination.PageSize, ct);
 
         return Ok(result);
     }

@@ -2,10 +2,11 @@ using System;
 using EbenezerBackend.Features.Prayers.Domain.Entities;
 using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.CustomAttributes;
+using EbenezerBackend.Shared.Data;
 
 namespace EbenezerBackend.Features.Prayers.Data.Models;
 
-[CollectionName("Prayers")]
+[CollectionName(ArangoDbCollections.Prayers)]
 public class PrayerModel(string content, DateTime createdAt, bool isPublic) : ArangoDbBaseModel, IBaseModel<PrayerModel, PrayerEntity>
 {
     public string Content { get; set; } = content;
@@ -31,7 +32,7 @@ public class PrayerModel(string content, DateTime createdAt, bool isPublic) : Ar
     {
         return new PrayerModel(entity.Content, entity.CreatedAt, entity.IsPublic)
         {
-            Id = entity.Id,
+            Key = entity.Id,
             UpdatedAt = entity.UpdatedAt,
             AuthorResponseStatus = entity.AuthorResponseStatus,
             AuthorResponseMessage = entity.AuthorResponseMessage,

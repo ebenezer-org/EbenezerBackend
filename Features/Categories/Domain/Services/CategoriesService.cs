@@ -6,8 +6,8 @@ using EbenezerBackend.Features.Categories.Domain.Repositories;
 using EbenezerBackend.Features.Categories.Presentation.Dtos.Create;
 using EbenezerBackend.Features.Categories.Presentation.Dtos.Get;
 using EbenezerBackend.Features.Categories.Presentation.Dtos.Update;
-using EbenezerBackend.Shared.Exceptions;
-using EbenezerBackend.Shared.Services.UserContext;
+using EbenezerBackend.Shared.Web.Exceptions;
+using EbenezerBackend.Shared.Web.Services.UserContext;
 
 namespace EbenezerBackend.Features.Categories.Domain.Services;
 

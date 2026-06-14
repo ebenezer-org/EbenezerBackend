@@ -1,3 +1,7 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using EbenezerBackend.Features.Prayers.Domain.Entities;
 using EbenezerBackend.Features.Prayers.Domain.Repositories;
 using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.Insert;
@@ -12,9 +16,10 @@ using EbenezerBackend.Features.Prayers.Presentation.Dtos.Shared.AuthorResponse;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Support;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Timeline;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Update;
-using EbenezerBackend.Shared.Dtos;
-using EbenezerBackend.Shared.Exceptions;
-using EbenezerBackend.Shared.Services.UserContext;
+using EbenezerBackend.Shared.Web.Dtos;
+using EbenezerBackend.Shared.Web.Dtos.Pagination;
+using EbenezerBackend.Shared.Web.Exceptions;
+using EbenezerBackend.Shared.Web.Services.UserContext;
 
 namespace EbenezerBackend.Features.Prayers.Domain.Services;
 
@@ -31,7 +36,7 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
 
         var prayerResult = insertPrayerResult.PrayerModel.ToEntity();
         var userProfileResult = insertPrayerResult.AuthorProfileModel.ToEntity();
-        var userSafeDto = new UserSafeDto(userProfileResult.UserName, userProfileResult.FullName);
+        var userSafeDto = new UserEssentialDto(userProfileResult.Id!, userProfileResult.UserName, userProfileResult.FullName);
 
         return new CreatePrayerResponseDto(
             prayerResult.Id ?? string.Empty,
@@ -56,7 +61,7 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
 
         var prayer = result.PrayerModel.ToEntity();
         var author = result.AuthorProfileModel.ToEntity();
-        var userSafeDto = new UserSafeDto(author.UserName, author.FullName);
+        var userSafeDto = new UserEssentialDto(author.Id!, author.UserName, author.FullName);
 
         return new GetPrayerResponseDto(
             prayer.Id ?? string.Empty,
@@ -86,7 +91,7 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
 
         var prayer = updated.PrayerModel.ToEntity();
         var author = updated.AuthorProfileModel.ToEntity();
-        var userSafeDto = new UserSafeDto(author.UserName, author.FullName);
+        var userSafeDto = new UserEssentialDto(author.Id!, author.UserName, author.FullName);
 
         return new UpdatePrayerResponseDto(
             prayer.Id ?? string.Empty,
@@ -119,7 +124,7 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
         }
 
         var author = reaction.AuthorProfileModel.ToEntity();
-        var reactedBy = new UserSafeDto(author.UserName, author.FullName);
+        var reactedBy = new UserEssentialDto( author.Id!, author.UserName, author.FullName);
 
         return new SupportReactionResponseDto(
             reaction.PrayerModel.Id ?? string.Empty,
@@ -127,7 +132,7 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
             reaction.ActivityAt);
     }
 
-    public async Task<PaginatedResponseDto<IReadOnlyCollection<TimelinePrayerResponseDto>>> GetTimelineAsync(int page, int pageSize, CancellationToken ct)
+    public async Task<PaginatedResponseDto<TimelinePrayerResponseDto>> GetTimelineAsync(int page, int pageSize, CancellationToken ct)
     {
         var safePage = page < 1 ? 1 : page;
         var safePageSize = pageSize < 1 ? 20 : pageSize;
@@ -137,12 +142,12 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
         {
             var prayer = item.PrayerModel.ToEntity();
             var author = item.AuthorProfileModel.ToEntity();
-            var authorSafe = new UserSafeDto(author.UserName, author.FullName);
+            var authorSafe = new UserEssentialDto( author.Id!, author.UserName, author.FullName);
 
             var interactions = item.Interactions.Select(interaction =>
                 new PrayerInteractionResponseDto(
                     interaction.Type,
-                    new UserSafeDto(interaction.UserName, interaction.FullName),
+                    new UserEssentialDto(interaction.Id, interaction.UserName, interaction.FullName),
                     interaction.CreatedAt)).ToList();
 
             return new TimelinePrayerResponseDto(
@@ -158,29 +163,27 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
                 ToAuthorResponse(prayer));
         }).ToList();
 
-        return new PaginatedResponseDto<IReadOnlyCollection<TimelinePrayerResponseDto>>(
+        return new PaginatedResponseDto<TimelinePrayerResponseDto>(
             Items: items, Page: safePage, PageSize: safePageSize, TotalCount: totalCount);
     }
 
     public async Task<IReadOnlyCollection<ListPrayerResponseDto>> SearchPrayersAsync(SearchPrayersRequestDto request, CancellationToken ct)
     {
         var viewerUserName = userContext.IsAuthenticated ? userContext.UserName : null;
-        var safePage = request.Page < 1 ? 1 : request.Page;
-        var safePageSize = request.PageSize < 1 ? 20 : request.PageSize;
         var prayers = await prayersRepository.SearchPrayersAsync(
-            viewerUserName,
-            request.AuthorUserName,
-            request.CategoryId,
-            request.Text,
-            safePage,
-            safePageSize,
-            ct);
+            viewerUserName: viewerUserName,
+            authorUserName: request.AuthorUserName,
+            categoryId: request.CategoryId,
+            text: request.Text,
+            page: request.Pagination.Page,
+            pageSize: request.Pagination.PageSize,
+            ct: ct);
 
         return prayers.Select(prayer =>
         {
             var prayerResult = prayer.PrayerModel.ToEntity();
             var userProfileResult = prayer.AuthorProfileModel.ToEntity();
-            var userSafeDto = new UserSafeDto(userProfileResult.UserName, userProfileResult.FullName);
+            var userSafeDto = new UserEssentialDto(userProfileResult.Id!, userProfileResult.UserName, userProfileResult.FullName);
 
             return new ListPrayerResponseDto(
                 prayerResult.Id ?? string.Empty,

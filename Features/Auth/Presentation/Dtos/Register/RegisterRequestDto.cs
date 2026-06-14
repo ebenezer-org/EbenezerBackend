@@ -1,7 +1,7 @@
 namespace EbenezerBackend.Features.Auth.Presentation.Dtos.Register;
 
 public record RegisterRequestDto(
-    string Username,
+    string UserName,
     string Email,
     string Password
     );

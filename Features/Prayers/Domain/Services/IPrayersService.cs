@@ -9,7 +9,7 @@ using EbenezerBackend.Features.Prayers.Presentation.Dtos.Search;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Support;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Timeline;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Update;
-using EbenezerBackend.Shared.Dtos;
+using EbenezerBackend.Shared.Web.Dtos.Pagination;
 
 namespace EbenezerBackend.Features.Prayers.Domain.Services;
 
@@ -20,6 +20,6 @@ public interface IPrayersService
     Task<UpdatePrayerResponseDto> UpdatePrayerAsync(string prayerId, UpdatePrayerRequestDto request, CancellationToken ct);
     Task DeletePrayerAsync(string prayerId, CancellationToken ct);
     Task<SupportReactionResponseDto> AddSupportReactionAsync(string prayerId, CancellationToken ct);
-    Task<PaginatedResponseDto<IReadOnlyCollection<TimelinePrayerResponseDto>>> GetTimelineAsync(int page, int pageSize, CancellationToken ct);
+    Task<PaginatedResponseDto<TimelinePrayerResponseDto>> GetTimelineAsync(int page, int pageSize, CancellationToken ct);
     Task<IReadOnlyCollection<ListPrayerResponseDto>> SearchPrayersAsync(SearchPrayersRequestDto request, CancellationToken ct);
 }

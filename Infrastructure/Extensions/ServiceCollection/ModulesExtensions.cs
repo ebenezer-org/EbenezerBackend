@@ -1,5 +1,6 @@
 using EbenezerBackend.Features.Auth;
 using EbenezerBackend.Features.Categories;
+using EbenezerBackend.Features.Friendships;
 using EbenezerBackend.Features.Prayers;
 using EbenezerBackend.Features.Profile;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +15,8 @@ public static class ModulesExtensions
             .AddAuthModule()
             .AddProfileModule()
             .AddCategoriesModule()
-            .AddPrayersModule();
+            .AddPrayersModule()
+            .AddFriendshipsModule();
         
         return services;
     }

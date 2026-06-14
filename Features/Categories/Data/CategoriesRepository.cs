@@ -7,20 +7,18 @@ using EbenezerBackend.Features.Categories.Data.Models;
 using EbenezerBackend.Features.Categories.Domain.Entities;
 using EbenezerBackend.Features.Categories.Domain.Repositories;
 using EbenezerBackend.Shared;
-using EbenezerBackend.Shared.Exceptions;
+using EbenezerBackend.Shared.Data;
+using EbenezerBackend.Shared.Web.Exceptions;
 
 namespace EbenezerBackend.Features.Categories.Data;
 
 public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryModel>, ICategoriesRepository
 {
-    private const string UsersCollectionName = "Users";
-    private const string CreatedCategoryCollectionName = "CreatedCategory";
-
     public async Task<CategoryEntity> CreateCategoryAsync(CategoryEntity category, CancellationToken ct)
     {
         var query = $@"
             LET user = FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @ownerUsername
                     LIMIT 1
                     RETURN u
@@ -35,7 +33,7 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
                 _from: user._id,
                 _to: newCategory._id,
                 CreatedAt: DATE_ISO8601(DATE_NOW())
-            }} INTO {CreatedCategoryCollectionName}
+            }} INTO {ArangoDbEdges.CreatedCategory}
 
             RETURN newCategory
         ";
@@ -75,7 +73,7 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
     {
         var query = $@"
             LET user = FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @username
                     LIMIT 1
                     RETURN u
@@ -83,7 +81,7 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
 
             FILTER user != null
 
-            FOR category IN 1..1 OUTBOUND user._id {CreatedCategoryCollectionName}
+            FOR category IN 1..1 OUTBOUND user._id {ArangoDbEdges.CreatedCategory}
                 FILTER @includePrivate || category.IsPublic == true
                 SORT LOWER(category.Name)
                 RETURN category
@@ -104,7 +102,7 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
     {
         var query = $@"
             LET user = FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @ownerUsername
                     LIMIT 1
                     RETURN u
@@ -116,7 +114,7 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
                 FOR currentCategory IN {CollectionName}
                     FILTER currentCategory._key == @categoryId || currentCategory._id == @categoryId
                     LET ownerLink = FIRST(
-                        FOR edge IN {CreatedCategoryCollectionName}
+                        FOR edge IN {ArangoDbEdges.CreatedCategory}
                             FILTER edge._from == user._id && edge._to == currentCategory._id
                             LIMIT 1
                             RETURN edge
@@ -157,7 +155,7 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
     {
         var query = $@"
             LET user = FIRST(
-                FOR u IN {UsersCollectionName}
+                FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @ownerUsername
                     LIMIT 1
                     RETURN u
@@ -169,7 +167,7 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
                 FOR currentCategory IN {CollectionName}
                     FILTER currentCategory._key == @categoryId || currentCategory._id == @categoryId
                     LET ownerLink = FIRST(
-                        FOR edge IN {CreatedCategoryCollectionName}
+                        FOR edge IN {ArangoDbEdges.CreatedCategory}
                             FILTER edge._from == user._id && edge._to == currentCategory._id
                             LIMIT 1
                             RETURN edge
@@ -181,9 +179,9 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
             FILTER categoryToDelete != null
 
             LET removedOwnershipLinks = (
-                FOR edge IN {CreatedCategoryCollectionName}
+                FOR edge IN {ArangoDbEdges.CreatedCategory}
                     FILTER edge._to == categoryToDelete._id
-                    REMOVE edge IN {CreatedCategoryCollectionName}
+                    REMOVE edge IN {ArangoDbEdges.CreatedCategory}
                     RETURN OLD
             )
 

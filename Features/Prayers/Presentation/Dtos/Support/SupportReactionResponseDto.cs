@@ -1,11 +1,11 @@
 using System;
-using EbenezerBackend.Shared.Dtos;
+using EbenezerBackend.Shared.Web.Dtos;
 
 namespace EbenezerBackend.Features.Prayers.Presentation.Dtos.Support;
 
 public record SupportReactionResponseDto(
     string PrayerId,
-    UserSafeDto ReactedBy,
+    UserEssentialDto ReactedBy,
     DateTime ReactedAt
 );
 
