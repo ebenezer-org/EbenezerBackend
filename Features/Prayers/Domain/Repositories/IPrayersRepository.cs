@@ -17,7 +17,8 @@ public interface IPrayersRepository
     Task<bool> DeletePrayerAsync(string prayerId, string ownerUserName, CancellationToken ct);
     Task<ListPrayerRepositoryResponseDto?> SetAuthorResponseAsync(string prayerId, string ownerUserName, string? message,
         CancellationToken ct);
-    Task<TimelinePrayerRepositoryResponseDto?> ToggleSupportReactionAsync(string prayerId, string reactorUserName, CancellationToken ct);
+    Task AddSupportReactionAsync(string prayerId, string reactorUserName, CancellationToken ct);
+    Task RemoveSupportReactionAsync(string prayerId, string reactorUserName, CancellationToken ct);
     Task<(IReadOnlyCollection<TimelinePrayerRepositoryResponseDto>, int TotalCount)> GetTimelineAsync(string viewerUserName, int page, int pageSize,
         CancellationToken ct);
     Task<IReadOnlyCollection<ListPrayerRepositoryResponseDto>> SearchPrayersAsync(string? viewerUserName, string? authorUserName,

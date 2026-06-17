@@ -1,13 +1,9 @@
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using EbenezerBackend.Features.Prayers.Domain.Services;
-using EbenezerBackend.Features.Prayers.Presentation.Dtos.AuthorResponse;
+using EbenezerBackend.Features.Prayers.Presentation.Dtos.AddComment;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Create;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Get;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.List;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Search;
-using EbenezerBackend.Features.Prayers.Presentation.Dtos.Support;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Timeline;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Update;
 using EbenezerBackend.Shared.Web.Dtos.Pagination;
@@ -62,11 +58,34 @@ public class PrayersController(IPrayersService prayersService) : ControllerBase
 
     [Authorize]
     [HttpPost("{prayerId}/support")]
-    public async Task<ActionResult<SupportReactionResponseDto>> AddSupportReaction(
+    public async Task<IActionResult> AddSupportReaction(
         [FromRoute] string prayerId,
         CancellationToken ct)
     {
-        var result = await prayersService.AddSupportReactionAsync(prayerId, ct);
+        await prayersService.AddSupportReactionAsync(prayerId, ct);
+
+        return NoContent();
+    }
+    
+    [Authorize]
+    [HttpPost("{prayerId}/support-remove")]
+    public async Task<IActionResult> RemoveSupportReaction(
+        [FromRoute] string prayerId,
+        CancellationToken ct)
+    {
+        await prayersService.RemoveSupportReactionAsync(prayerId, ct);
+
+        return NoContent();
+    }
+    
+    [Authorize]
+    [HttpPost("{prayerId}/comment")]
+    public async Task<ActionResult<AddCommentResponseDto>> AddComment(
+        [FromRoute] string prayerId,
+        [FromBody] AddCommentRequestDto request,
+        CancellationToken ct)
+    {
+        var result = await prayersService.AddCommentAsync(prayerId, request, ct);
 
         return Ok(result);
     }

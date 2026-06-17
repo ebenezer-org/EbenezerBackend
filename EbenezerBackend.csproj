@@ -20,10 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Features\Prayers\Domain\Exceptions\" />
     <Folder Include="Features\Profile\Domain\Exceptions\" />
     <Folder Include="Features\Profile\Domain\Services\Implementations\" />
     <Folder Include="Features\Profile\Domain\Services\Interfaces\" />
+    <Folder Include="Features\Retrospective\Domain\Repositories\Dtos\" />
+    <Folder Include="Features\Retrospective\Presentation\Dtos\" />
   </ItemGroup>
 
 </Project>

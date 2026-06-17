@@ -3,6 +3,7 @@ using EbenezerBackend.Features.Categories;
 using EbenezerBackend.Features.Friendships;
 using EbenezerBackend.Features.Prayers;
 using EbenezerBackend.Features.Profile;
+using EbenezerBackend.Features.Retrospective;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EbenezerBackend.Infrastructure.Extensions.ServiceCollection;
@@ -14,9 +15,10 @@ public static class ModulesExtensions
         services
             .AddAuthModule()
             .AddProfileModule()
-            .AddCategoriesModule()
             .AddPrayersModule()
-            .AddFriendshipsModule();
+            .AddCategoriesModule()
+            .AddFriendshipsModule()
+            .AddRetrospectiveModule();
         
         return services;
     }

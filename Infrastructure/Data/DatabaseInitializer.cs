@@ -1,13 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using ArangoDBNetStandard;
+﻿using ArangoDBNetStandard;
 using ArangoDBNetStandard.CollectionApi.Models;
 using ArangoDBNetStandard.DatabaseApi.Models;
 using ArangoDBNetStandard.IndexApi.Models;
 using ArangoDBNetStandard.Transport.Http;
-using Microsoft.Extensions.Logging;
+using EbenezerBackend.Features.Retrospective.Domain.Enums;
+using EbenezerBackend.Shared.Data;
 
 namespace EbenezerBackend.Infrastructure.Data;
 
@@ -54,6 +51,8 @@ public class DatabaseInitializer(
                 await CreateEdges(existingCollections);
                 await CreateIndexes();
 
+                await SeedEncouragementMessages();
+
                 logger.LogInformation("Banco de dados pronto para uso.");
                 break;
             }
@@ -76,10 +75,10 @@ public class DatabaseInitializer(
     {
         var tasks = new List<Task>
         {
-            EnsureCollectionAsync("Users", CollectionType.Document, existingCollections),
-            EnsureCollectionAsync("Prayers", CollectionType.Document, existingCollections),
-            EnsureCollectionAsync("Comments", CollectionType.Document, existingCollections),
-            EnsureCollectionAsync("Categories", CollectionType.Document, existingCollections),
+            EnsureCollectionAsync(ArangoDbCollections.Users, CollectionType.Document, existingCollections),
+            EnsureCollectionAsync(ArangoDbCollections.Prayers, CollectionType.Document, existingCollections),
+            EnsureCollectionAsync(ArangoDbCollections.Categories, CollectionType.Document, existingCollections),
+            EnsureCollectionAsync(ArangoDbCollections.EncouragementMessages, CollectionType.Document, existingCollections),
         };
 
         await Task.WhenAll(tasks);
@@ -89,12 +88,12 @@ public class DatabaseInitializer(
     {
         var tasks = new List<Task>
         {
-            EnsureCollectionAsync("Friendships", CollectionType.Edge, existingCollections),
-            EnsureCollectionAsync("PostedBy", CollectionType.Edge, existingCollections),
-            EnsureCollectionAsync("CreatedCategory", CollectionType.Edge, existingCollections),
-            EnsureCollectionAsync("CategorizedAs", CollectionType.Edge, existingCollections),
-            EnsureCollectionAsync("InteractsWith", CollectionType.Edge, existingCollections),
-            EnsureCollectionAsync("ReactedBy", CollectionType.Edge, existingCollections)
+            EnsureCollectionAsync(ArangoDbEdges.Friendships, CollectionType.Edge, existingCollections),
+            EnsureCollectionAsync(ArangoDbEdges.PostedBy, CollectionType.Edge, existingCollections),
+            EnsureCollectionAsync(ArangoDbEdges.CreatedCategory, CollectionType.Edge, existingCollections),
+            EnsureCollectionAsync(ArangoDbEdges.CategorizedAs, CollectionType.Edge, existingCollections),
+            EnsureCollectionAsync(ArangoDbEdges.ReactedBy, CollectionType.Edge, existingCollections),
+            EnsureCollectionAsync(ArangoDbEdges.CommentedBy, CollectionType.Edge, existingCollections),
         };
 
         await Task.WhenAll(tasks);
@@ -102,12 +101,11 @@ public class DatabaseInitializer(
 
     private async Task CreateIndexes()
     {
-        await EnsureUniqueIndexAsync("Users", ["Email"], "idx_unique_email");
-        await EnsureUniqueIndexAsync("Users", ["UserName"], "idx_unique_username");
-        await EnsurePersistentIndexAsync("Categories", ["OwnerUsername"], "idx_categories_owner_username");
-        await EnsurePersistentIndexAsync("Categories", ["IsPublic"], "idx_categories_is_public");
-        await EnsurePersistentIndexAsync("Prayers", ["IsPublic"], "idx_prayers_is_public");
-        await EnsurePersistentIndexAsync("Prayers", ["CreatedAt"], "idx_prayers_created_at");
+        await EnsureUniqueIndexAsync(ArangoDbCollections.Users, ["UserName"], "idx_unique_username");
+        await EnsurePersistentIndexAsync(ArangoDbCollections.Categories, ["OwnerUsername"], "idx_categories_owner_username");
+        await EnsurePersistentIndexAsync(ArangoDbCollections.Categories, ["IsPublic"], "idx_categories_is_public");
+        await EnsurePersistentIndexAsync(ArangoDbCollections.Prayers, ["IsPublic"], "idx_prayers_is_public");
+        await EnsurePersistentIndexAsync(ArangoDbCollections.Prayers, ["CreatedAt"], "idx_prayers_created_at");
     }
 
     private async Task EnsureCollectionAsync(string name, CollectionType type, List<string> existing)
@@ -169,5 +167,49 @@ public class DatabaseInitializer(
                     Name = indexName
                 });
         }
+    }
+
+    private async Task SeedEncouragementMessages()
+    {
+        var query = $@"
+            LET messages = [
+                {{
+                    _key: ""{nameof(EncouragementMessageCategoryEnum.Sovereignty)}"",
+                    Title: ""Soberania e Confiança"",
+                    Message: ""Mensagem mockada."",
+                    ScriptureVerse: ""Porque os meus pensamentos não são os vossos pensamentos, nem os vossos caminhos os meus caminhos, diz o Senhor."",
+                    ScriptureReference: ""Isaías 55:8""
+                }},
+                {{
+                    _key: ""{nameof(EncouragementMessageCategoryEnum.Patience)}"",
+                    Title: ""O Valor da Espera"",
+                    Message: ""Mensagem mockada."",
+                    ScriptureVerse: ""Esperei com paciência no SENHOR, e ele se inclinou para mim, e ouviu o meu clamor."",
+                    ScriptureReference: ""Salmos 40:1""
+                }},
+                {{
+                    _key: ""{nameof(EncouragementMessageCategoryEnum.Gratitude)}"",
+                    Title: ""Celebre os Feitos do Senhor"",
+                    Message: ""Mensagem mockada."",
+                    ScriptureVerse: ""Que darei eu ao Senhor, por todos os benefícios que me tem feito?"",
+                    ScriptureReference: ""Salmos 116:12""
+                }},
+                {{
+                    _key: ""{nameof(EncouragementMessageCategoryEnum.Default)}"",
+                    Title: ""Até Aqui nos Ajudou o Senhor"",
+                    Message: ""Mensagem mockada."",
+                    ScriptureVerse: ""Tomou então Samuel uma pedra... e chamou o seu nome Ebenézer, e disse: Até aqui nos ajudou o Senhor."",
+                    ScriptureReference: ""1 Samuel 7:12""
+                }}
+            ]
+
+            FOR message IN messages
+                UPSERT {{ _key: message._key }}
+                INSERT message
+                UPDATE message
+                IN EncouragementMessages
+        ";
+
+        await client.Cursor.PostCursorAsync(query);
     }
 }

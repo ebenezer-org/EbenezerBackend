@@ -16,4 +16,9 @@ public static class ArangoDbUtils
 
         return $"{collectionName}/{keyOrId}";
     }
+    
+    public static string FormatDateTimeToArangoDbFormat(DateTime date)
+    {
+        return date.ToString("yyyy-MM-ddTHH:mm:ssZ");
+    }
 }

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using ArangoDBNetStandard;
 using ArangoDBNetStandard.CursorApi.Models;
 using EbenezerBackend.Features.Prayers.Data.Models;
+using EbenezerBackend.Features.Prayers.Domain.Enums;
 using EbenezerBackend.Features.Prayers.Domain.Repositories;
 using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.Insert;
 using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.List;
@@ -305,20 +306,17 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
 
             FILTER user != null
 
-            LET prayerToDelete = FIRST(
-                FOR currentPrayer IN {CollectionName}
-                    FILTER currentPrayer._key == @prayerId || currentPrayer._id == @prayerId
-                    LET ownerLink = FIRST(
-                        FOR edge IN {ArangoDbEdges.PostedBy}
-                            FILTER edge._from == user._id && edge._to == currentPrayer._id
-                            LIMIT 1
-                            RETURN edge
-                    )
-                    FILTER ownerLink != null
-                    RETURN currentPrayer
+            LET prayerToDelete = DOCUMENT(@prayerId)
+            FILTER prayerToDelete != null
+
+            LET ownerLink = FIRST(
+                FOR edge IN {ArangoDbEdges.PostedBy}
+                    FILTER edge._from == user._id && edge._to == prayerToDelete._id
+                    LIMIT 1
+                    RETURN edge
             )
 
-            FILTER prayerToDelete != null
+            FILTER ownerLink != null
 
             LET removedOwnership = (
                 FOR edge IN {ArangoDbEdges.PostedBy}
@@ -334,10 +332,17 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                     RETURN OLD
             )
 
-            LET removedInteractions = (
-                FOR edge IN {ArangoDbEdges.InteractsWith}
+            LET removedReactions = (
+                FOR edge IN {ArangoDbEdges.ReactedBy}
                     FILTER edge._to == prayerToDelete._id
-                    REMOVE edge IN {ArangoDbEdges.InteractsWith}
+                    REMOVE edge IN {ArangoDbEdges.ReactedBy}
+                    RETURN OLD
+            )
+
+            LET removedComments = (
+                FOR edge IN {ArangoDbEdges.CommentedBy}
+                    FILTER edge._to == prayerToDelete._id
+                    REMOVE edge IN {ArangoDbEdges.CommentedBy}
                     RETURN OLD
             )
 
@@ -348,7 +353,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         var bindVars = new Dictionary<string, object>
         {
             { "userName", ownerUserName },
-            { "prayerId", prayerId }
+            { "prayerId", ArangoDbUtils.BuildArangoDbId(prayerId, CollectionName)! }
         };
 
         var response = await db.Cursor.PostCursorAsync<int>(query, bindVars, token: ct);
@@ -422,75 +427,101 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         return response.Result.FirstOrDefault();
     }
 
-    public async Task<TimelinePrayerRepositoryResponseDto?> ToggleSupportReactionAsync(
+    public async Task AddSupportReactionAsync(
         string prayerId,
         string reactorUserName,
         CancellationToken ct)
     {
         var query = $@"
             LET user = FIRST(
-                FOR u IN {ArangoDbCollections.Users}
-                    FILTER u.UserName == @userName
-                    LIMIT 1
+                FOR u IN {ArangoDbCollections.Users} 
+                    FILTER u.UserName == @userName 
+                    LIMIT 1 
                     RETURN u
             )
-
-            LET prayer = FIRST(
-                FOR currentPrayer IN {CollectionName}
-                    FILTER currentPrayer._key == @prayerId || currentPrayer._id == @prayerId
-                    LIMIT 1
-                    RETURN currentPrayer
-            )
+            
+            LET prayer = DOCUMENT(@prayerId)
 
             FILTER user != null && prayer != null
 
             LET author = FIRST(
-                FOR u IN 1..1 INBOUND prayer._id {ArangoDbEdges.PostedBy}
-                    LIMIT 1
+                FOR u IN 1..1 INBOUND prayer._id {ArangoDbEdges.PostedBy} 
+                    LIMIT 1 
                     RETURN u
             )
 
-            FILTER author != null
-            FILTER prayer.IsPublic == true
-            FILTER author.UserName != @userName
+            FILTER author != null && prayer.IsPublic == true
 
-            LET reaction = FIRST(
+            LET existingReaction = FIRST(
                 FOR edge IN {ArangoDbEdges.ReactedBy}
                     FILTER edge._from == user._id && edge._to == prayer._id
                     LIMIT 1
                     RETURN edge
             )
 
-            IF reaction != null THEN
-                REMOVE reaction IN {ArangoDbEdges.ReactedBy}
-            ELSE
-                INSERT {{
-                    _from: user._id,
-                    _to: prayer._id,
-                    CreatedAt: DATE_ISO8601(DATE_NOW())
-                }} INTO {ArangoDbEdges.ReactedBy}
+            LET newReaction = (
+                FOR i IN existingReaction == null ? [1] : []
+                    INSERT {{
+                        _from: user._id,
+                        _to: prayer._id,
+                        CreatedAt: DATE_ISO8601(DATE_NOW())
+                    }} INTO {ArangoDbEdges.ReactedBy}
+                    RETURN NEW
+            )
 
-            RETURN {{
-                AuthorProfileModel: user,
-                PrayerModel: prayer,
-                Categories: [],
-                Interactions: [],
-                ActivityAt: reaction.CreatedAt
-            }}
+            RETURN true
         ";
 
         var bindVars = new Dictionary<string, object>
         {
             { "userName", reactorUserName },
-            { "prayerId", prayerId }
+            { "prayerId", ArangoDbUtils.BuildArangoDbId(prayerId, CollectionName)! }
         };
 
-        var response = await db.Cursor.PostCursorAsync<TimelinePrayerRepositoryResponseDto>(query, bindVars, token: ct);
+        await db.Cursor.PostCursorAsync(query, bindVars, token: ct);
+    }
 
-        return response.Result.FirstOrDefault();
+    public async Task RemoveSupportReactionAsync(
+        string prayerId,
+        string reactorUserName,
+        CancellationToken ct)
+    {
+        var query = $@"
+            LET user = FIRST(
+                FOR u IN {ArangoDbCollections.Users} 
+                    FILTER u.UserName == @userName 
+                    LIMIT 1 
+                    RETURN u
+            )
+            
+            LET prayer = FIRST(
+                FOR currentPrayer IN {CollectionName} 
+                    FILTER currentPrayer._key == @prayerId || currentPrayer._id == @prayerId 
+                    LIMIT 1 
+                    RETURN currentPrayer
+            )
+
+            FILTER user != null && prayer != null
+
+            LET removedReactions = (
+                FOR edge IN {ArangoDbEdges.ReactedBy}
+                    FILTER edge._from == user._id && edge._to == prayer._id
+                    REMOVE edge IN {ArangoDbEdges.ReactedBy}
+                    RETURN OLD
+            )
+
+            RETURN true
+        ";
+
+        var bindVars = new Dictionary<string, object>
+        {
+            { "userName", reactorUserName },
+            { "prayerId", ArangoDbUtils.BuildArangoDbId(prayerId, CollectionName)! }
+        };
+
+        await db.Cursor.PostCursorAsync(query, bindVars, token: ct);
     }
         
-    // TODO: Substituir acesso com username para Document(@userId)
     public async Task<(IReadOnlyCollection<TimelinePrayerRepositoryResponseDto>, int TotalCount)> GetTimelineAsync(
         string viewerUserName,
         int page,
@@ -537,20 +568,18 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             LET ownInteractions = (
                 // MÁGICA AQUI: Pega direto as orações do usuário logado
                 FOR myPrayer IN 1..1 OUTBOUND viewer._id {ArangoDbEdges.PostedBy}
-                    
-                    // Usamos grafo para buscar quem interagiu!
-                    LET interactions = (
-                        FOR reactor, edge IN 1..1 INBOUND myPrayer._id {ArangoDbEdges.InteractsWith}
+
+                    LET reactions = (
+                        FOR reaction IN 1..1 INBOUND myPrayer._id {ArangoDbEdges.ReactedBy}
+                            LET reactor = DOCUMENT(reaction._from)
+
                             RETURN {{
-                                Type: edge.Type,
-                                Id: reactor._key,
-                                UserName: reactor.UserName,
-                                FullName: reactor.FullName,
-                                CreatedAt: edge.CreatedAt
+                                Reactor: reactor,
+                                CreatedAt: reaction.CreatedAt
                             }}
                     )
     
-                    FILTER LENGTH(interactions) > 0
+                    FILTER LENGTH(reactions) > 0
     
                     LET categories = (
                         FOR category IN 1..1 OUTBOUND myPrayer._id {ArangoDbEdges.CategorizedAs}
@@ -561,14 +590,11 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                             }}
                     )
     
-                    LET latestInteraction = MAX(interactions[*].CreatedAt)
-    
                     RETURN {{
                         AuthorProfileModel: viewer,
                         PrayerModel: myPrayer,
                         Categories: categories,
                         Interactions: interactions,
-                        ActivityAt: latestInteraction
                     }}
             )
     

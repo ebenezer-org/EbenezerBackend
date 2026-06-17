@@ -1,5 +1,6 @@
 using System;
 using EbenezerBackend.Features.Prayers.Domain.Entities;
+using EbenezerBackend.Features.Prayers.Domain.Enums;
 using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.CustomAttributes;
 using EbenezerBackend.Shared.Data;
@@ -13,7 +14,7 @@ public class PrayerModel(string content, DateTime createdAt, bool isPublic) : Ar
     public bool IsPublic { get; set; } = isPublic;
     public DateTime CreatedAt { get; init; } = createdAt;
     public DateTime UpdatedAt { get; set; } = createdAt;
-    public string? AuthorResponseStatus { get; set; }
+    public PrayerAnswerStatusEnum? DivineAnswerStatus { get; set; }
     public string? AuthorResponseMessage { get; set; }
     public DateTime? AuthorResponseCreatedAt { get; set; }
 
@@ -21,10 +22,10 @@ public class PrayerModel(string content, DateTime createdAt, bool isPublic) : Ar
         => new(
             Content,
             IsPublic,
-            Id,
+            Key,
             CreatedAt,
             UpdatedAt,
-            AuthorResponseStatus,
+            DivineAnswerStatus,
             AuthorResponseMessage,
             AuthorResponseCreatedAt);
 
@@ -34,7 +35,7 @@ public class PrayerModel(string content, DateTime createdAt, bool isPublic) : Ar
         {
             Key = entity.Id,
             UpdatedAt = entity.UpdatedAt,
-            AuthorResponseStatus = entity.AuthorResponseStatus,
+            DivineAnswerStatus = entity.AuthorResponseStatus,
             AuthorResponseMessage = entity.AuthorResponseMessage,
             AuthorResponseCreatedAt = entity.AuthorResponseCreatedAt
         };

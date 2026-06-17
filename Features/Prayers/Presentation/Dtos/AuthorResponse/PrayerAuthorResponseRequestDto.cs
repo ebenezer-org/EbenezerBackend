@@ -3,7 +3,7 @@ using EbenezerBackend.Features.Prayers.Domain.Enums;
 namespace EbenezerBackend.Features.Prayers.Presentation.Dtos.AuthorResponse;
 
 public record PrayerAuthorResponseRequestDto(
-    PrayerAnswerStatus Status,
+    PrayerAnswerStatusEnum StatusEnum,
     string? Message = null
 );
 

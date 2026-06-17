@@ -3,9 +3,9 @@ using System.Text.Json.Serialization;
 namespace EbenezerBackend.Features.Prayers.Domain.Enums;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum PrayerAnswerStatus
+public enum PrayerAnswerStatusEnum
 {
-    Yes,
-    No,
+    Granted,
+    SovereignNo,
     Wait
 }

@@ -19,7 +19,7 @@ public class CategoryModel : ArangoDbBaseModel, IBaseModel<CategoryModel, Catego
 
     public CategoryEntity ToEntity()
     {
-        return new CategoryEntity(OwnerUsername, Name, Description, ColorHex, IsPublic, Id, CreatedAt, UpdatedAt);
+        return new CategoryEntity(OwnerUsername, Name, Description, ColorHex, IsPublic, Key, CreatedAt, UpdatedAt);
     }
 
     public static CategoryModel FromEntity(CategoryEntity entity)

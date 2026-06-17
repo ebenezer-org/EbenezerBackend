@@ -1,24 +1,19 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using EbenezerBackend.Features.Prayers.Domain.Entities;
+using EbenezerBackend.Features.Prayers.Domain.Exceptions;
 using EbenezerBackend.Features.Prayers.Domain.Repositories;
 using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.Insert;
 using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.Shared;
-using EbenezerBackend.Features.Prayers.Presentation.Dtos.AuthorResponse;
+using EbenezerBackend.Features.Prayers.Presentation.Dtos.AddComment;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Create;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Get;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.List;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Search;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Shared;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Shared.AuthorResponse;
-using EbenezerBackend.Features.Prayers.Presentation.Dtos.Support;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Timeline;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Update;
 using EbenezerBackend.Shared.Web.Dtos;
 using EbenezerBackend.Shared.Web.Dtos.Pagination;
-using EbenezerBackend.Shared.Web.Exceptions;
 using EbenezerBackend.Shared.Web.Services.UserContext;
 
 namespace EbenezerBackend.Features.Prayers.Domain.Services;
@@ -56,7 +51,7 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
 
         if (result is null)
         {
-            throw new NotFoundException("Oração não encontrada");
+            throw new PrayerNotFoundException();
         }
 
         var prayer = result.PrayerModel.ToEntity();
@@ -86,7 +81,7 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
 
         if (updated is null)
         {
-            throw new NotFoundException("Oração não encontrada");
+            throw new PrayerNotFoundException();
         }
 
         var prayer = updated.PrayerModel.ToEntity();
@@ -110,26 +105,18 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
 
         if (!deleted)
         {
-            throw new NotFoundException("Oração não encontrada");
+            throw new PrayerNotFoundException();
         }
     }
 
-    public async Task<SupportReactionResponseDto> AddSupportReactionAsync(string prayerId, CancellationToken ct)
+    public async Task AddSupportReactionAsync(string prayerId, CancellationToken ct)
     {
-        var reaction = await prayersRepository.ToggleSupportReactionAsync(prayerId, userContext.UserName, ct);
-
-        if (reaction is null)
-        {
-            throw new NotFoundException("Oração não encontrada");
-        }
-
-        var author = reaction.AuthorProfileModel.ToEntity();
-        var reactedBy = new UserEssentialDto( author.Id!, author.UserName, author.FullName);
-
-        return new SupportReactionResponseDto(
-            reaction.PrayerModel.Id ?? string.Empty,
-            reactedBy,
-            reaction.ActivityAt);
+        await prayersRepository.AddSupportReactionAsync(prayerId, userContext.UserName, ct);
+    }
+    
+    public async Task RemoveSupportReactionAsync(string prayerId, CancellationToken ct)
+    {
+        await prayersRepository.RemoveSupportReactionAsync(prayerId, userContext.UserName, ct);
     }
 
     public async Task<PaginatedResponseDto<TimelinePrayerResponseDto>> GetTimelineAsync(int page, int pageSize, CancellationToken ct)
@@ -196,6 +183,11 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
                 ToAuthorResponse(prayerResult));
         }).ToList();
     }
+    
+    public Task<AddCommentResponseDto> AddCommentAsync(string prayerId, AddCommentRequestDto request, CancellationToken ct)
+    {
+        throw new NotImplementedException();
+    }
 
     private static IReadOnlyCollection<PrayerCategoryResponseDto> ToCategoriesResponse(
         IReadOnlyCollection<PrayerCategoryPartialDto> categories)
@@ -203,8 +195,8 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
 
     private static PrayerAuthorResponseDto? ToAuthorResponse(PrayerEntity prayer)
     {
-        return string.IsNullOrWhiteSpace(prayer.AuthorResponseStatus) || prayer.AuthorResponseCreatedAt is null
+        return prayer.AuthorResponseStatus is null || prayer.AuthorResponseCreatedAt is null
             ? null
-            : new PrayerAuthorResponseDto(prayer.AuthorResponseStatus, prayer.AuthorResponseMessage, prayer.AuthorResponseCreatedAt.Value);
+            : new PrayerAuthorResponseDto(nameof(prayer.AuthorResponseStatus), prayer.AuthorResponseMessage, prayer.AuthorResponseCreatedAt.Value);
     }
 }
