@@ -27,4 +27,10 @@
     <Folder Include="Features\Retrospective\Presentation\Dtos\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <_ContentIncludedByDefault Remove="EbenezerBackend.LoadTests\obj\EbenezerBackend.LoadTests.csproj.nuget.dgspec.json" />
+    <_ContentIncludedByDefault Remove="EbenezerBackend.LoadTests\obj\project.assets.json" />
+    <_ContentIncludedByDefault Remove="EbenezerBackend.LoadTests\obj\project.packagespec.json" />
+  </ItemGroup>
+
 </Project>
