@@ -1,6 +1,6 @@
 namespace EbenezerBackend.Shared.Data;
 
-public static class ArangoDbEdges
+public static class DbEdges
 {
     public const string Friendships = "Friendships";
     public const string PostedBy = "PostedBy";

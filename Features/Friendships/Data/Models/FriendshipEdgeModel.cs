@@ -7,9 +7,13 @@ using Newtonsoft.Json;
 
 namespace EbenezerBackend.Features.Friendships.Data.Models;
 
-[CollectionName(ArangoDbEdges.Friendships)]
-public class FriendshipEdgeModel(string fromUserName, string toUserName, string fromName, string toName, DateTime requestedAt, DateTime? acceptedAt) : ArangoDbBaseModel, IBaseModel<FriendshipEdgeModel, FriendshipRequestEntity>
+[CollectionName(DbEdges.Friendships)]
+public class FriendshipEdgeModel(string fromUserName, string toUserName, string fromName, string toName, DateTime requestedAt, DateTime? acceptedAt) : IBaseModel<FriendshipEdgeModel, FriendshipRequestEntity>
 {
+    public string? Key { get; set; }
+
+    public string Id => Key ?? string.Empty;
+
     [JsonProperty("_from")]
     public string FromId { get; set; } = string.Empty;
     
@@ -17,7 +21,7 @@ public class FriendshipEdgeModel(string fromUserName, string toUserName, string 
     public string FromKey 
     { 
         get => FromId.Contains('/') ? FromId.Split('/')[1] : FromId;
-        set => FromId = $"{ArangoDbCollections.Users}/{value}";
+        set => FromId = $"{DbCollections.Users}/{value}";
     }
 
     [JsonProperty("_to")]
@@ -27,7 +31,7 @@ public class FriendshipEdgeModel(string fromUserName, string toUserName, string 
     public string ToKey 
     {
         get => ToId.Contains('/') ? ToId.Split('/')[1] : ToId;
-        set => ToId = $"{ArangoDbCollections.Users}/{value}";
+        set => ToId = $"{DbCollections.Users}/{value}";
     }
     
     public string FromUserName { get; } = fromUserName;

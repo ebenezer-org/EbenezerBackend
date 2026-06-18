@@ -6,25 +6,5 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5000:8080"
-    depends_on:
-      - database
-    environment:
-      - ArangoDb__User=${ARANGODB_USER}
-      - ArangoDb__Host=database
-      - ArangoDb__Password=${ARANGODB_PASSWORD}
     env_file:
       - .env
-
-  database:
-    image: arangodb:3.12.7.1
-    container_name: arangodb
-    platform: linux/arm64/v8
-    ports:
-      - "${DB_PORT}:8529"
-    environment:
-      - ARANGO_ROOT_PASSWORD=${ARANGODB_PASSWORD}
-    volumes:
-      - arangodb_data:/var/lib/arangodb3
-
-volumes:
-  arangodb_data:

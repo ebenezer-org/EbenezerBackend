@@ -7,9 +7,10 @@ using EbenezerBackend.Shared.Data;
 
 namespace EbenezerBackend.Features.Prayers.Data.Models;
 
-[CollectionName(ArangoDbCollections.Prayers)]
-public class PrayerModel(string content, DateTime createdAt, bool isPublic) : ArangoDbBaseModel, IBaseModel<PrayerModel, PrayerEntity>
+[CollectionName(DbCollections.Prayers)]
+public class PrayerModel(string content, DateTime createdAt, bool isPublic) : IBaseModel<PrayerModel, PrayerEntity>
 {
+    public string? Key { get; set; }
     public string Content { get; set; } = content;
     public bool IsPublic { get; set; } = isPublic;
     public DateTime CreatedAt { get; init; } = createdAt;

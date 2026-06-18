@@ -1,15 +1,14 @@
 using System;
 using EbenezerBackend.Features.Auth.Domain.Entities;
-using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.CustomAttributes;
 using EbenezerBackend.Shared.Data;
-using Newtonsoft.Json;
 
 namespace EbenezerBackend.Features.Auth.Data.Models;
 
-[CollectionName(ArangoDbCollections.Users)]
-public class AuthUserModel : ArangoDbBaseModel
+[CollectionName(DbCollections.Users)]
+public class AuthUserModel
 {
+    public string? Key { get; set; }
     public required string UserName { get; set; }
     public required string Email { get; set; }
     public required string PasswordHash { get; set; }

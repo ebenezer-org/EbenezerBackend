@@ -6,9 +6,10 @@ using EbenezerBackend.Shared.Data;
 
 namespace EbenezerBackend.Features.Categories.Data.Models;
 
-[CollectionName(ArangoDbCollections.Categories)]
-public class CategoryModel : ArangoDbBaseModel, IBaseModel<CategoryModel, CategoryEntity>
+[CollectionName(DbCollections.Categories)]
+public class CategoryModel : IBaseModel<CategoryModel, CategoryEntity>
 {
+    public string? Key { get; set; }
     public string OwnerUsername { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;

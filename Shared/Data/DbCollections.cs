@@ -1,6 +1,6 @@
 namespace EbenezerBackend.Shared.Data;
 
-public static class ArangoDbCollections
+public static class DbCollections
 {
     public const string Users = "Users";
     public const string Categories = "Categories";

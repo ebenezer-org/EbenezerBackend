@@ -14,7 +14,6 @@ var builder = WebApplication.CreateBuilder(args);
 var variables = new Variables();
 
 builder.Services.AddControllers();
-builder.Services.AddArangoDb(builder.Configuration);
 builder.Services.AddCustomIdentity();
 builder.Services.AddVariables();
 builder.Services.AddJwtAuthenticationService(variables);
@@ -26,8 +25,6 @@ builder.Services.AddOpenApi(options =>
 });
 
 var app = builder.Build();
-
-await app.UseArangoDbInitialization();
 
 if (app.Environment.IsDevelopment())
 {

@@ -6,15 +6,16 @@ using EbenezerBackend.Shared.Data;
 
 namespace EbenezerBackend.Features.Retrospective.Data.Models;
 
-[CollectionName(ArangoDbCollections.EncouragementMessages)]
+[CollectionName(DbCollections.EncouragementMessages)]
 public class EncouragementMessageModel(
     EncouragementMessageCategoryEnum category,
     string title,
     string message,
     string scriptureVerse,
     string scriptureReference
-    ) : ArangoDbBaseModel, IBaseModel<EncouragementMessageModel, EncouragementMessageEntity>
+    ) : IBaseModel<EncouragementMessageModel, EncouragementMessageEntity>
 {
+    public string? Key { get; set; }
     public EncouragementMessageCategoryEnum Category { get; set; } = category;
     public string Title { get; set; } = title;
     public string Message { get; set; } = message;

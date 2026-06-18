@@ -5,9 +5,10 @@ using EbenezerBackend.Shared.Data;
 
 namespace EbenezerBackend.Features.Profile.Data.Models;
 
-[CollectionName(ArangoDbCollections.Users)]
-public class ProfileModel( string userName, string fullName, string bio, string phone) : ArangoDbBaseModel, IBaseModel<ProfileModel, ProfileEntity>
+[CollectionName(DbCollections.Users)]
+public class ProfileModel(string userName, string fullName, string bio, string phone) : IBaseModel<ProfileModel, ProfileEntity>
 {
+    public string? Key { get; set; }
     public readonly string UserName = userName;
     public readonly string FullName = fullName;
     public readonly string Bio = bio;
