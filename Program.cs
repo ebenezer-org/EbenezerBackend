@@ -14,6 +14,8 @@ var builder = WebApplication.CreateBuilder(args);
 var variables = new Variables();
 
 builder.Services.AddControllers();
+builder.Services.AddMongoDb();
+builder.Services.AddNeo4JDb();
 builder.Services.AddCustomIdentity();
 builder.Services.AddVariables();
 builder.Services.AddJwtAuthenticationService(variables);
