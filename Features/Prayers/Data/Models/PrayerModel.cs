@@ -4,18 +4,31 @@ using EbenezerBackend.Features.Prayers.Domain.Enums;
 using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.CustomAttributes;
 using EbenezerBackend.Shared.Data;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
 
 namespace EbenezerBackend.Features.Prayers.Data.Models;
 
 [CollectionName(DbCollections.Prayers)]
-public class PrayerModel(string content, DateTime createdAt, bool isPublic) : IBaseModel<PrayerModel, PrayerEntity>
+[BsonIgnoreExtraElements]
+public class PrayerModel : IBaseModel<PrayerModel, PrayerEntity>
 {
-    public string? Key { get; set; }
-    public string Content { get; set; } = content;
-    public bool IsPublic { get; set; } = isPublic;
-    public DateTime CreatedAt { get; init; } = createdAt;
-    public DateTime UpdatedAt { get; set; } = createdAt;
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? Id { get; set; }
+
+    public string AuthorUsername { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+    public bool IsPublic { get; set; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime UpdatedAt { get; set; }
+
+    public List<string> CategoryIds { get; set; } = new();
+    public List<PrayerSupportReactionModel> Supporters { get; set; } = new();
+
+    [BsonRepresentation(BsonType.String)]
     public PrayerAnswerStatusEnum? DivineAnswerStatus { get; set; }
+
     public string? AuthorResponseMessage { get; set; }
     public DateTime? AuthorResponseCreatedAt { get; set; }
 
@@ -23,7 +36,7 @@ public class PrayerModel(string content, DateTime createdAt, bool isPublic) : IB
         => new(
             Content,
             IsPublic,
-            Key,
+            Id,
             CreatedAt,
             UpdatedAt,
             DivineAnswerStatus,
@@ -32,9 +45,12 @@ public class PrayerModel(string content, DateTime createdAt, bool isPublic) : IB
 
     public static PrayerModel FromEntity(PrayerEntity entity)
     {
-        return new PrayerModel(entity.Content, entity.CreatedAt, entity.IsPublic)
+        return new PrayerModel
         {
-            Key = entity.Id,
+            Id = entity.Id,
+            Content = entity.Content,
+            IsPublic = entity.IsPublic,
+            CreatedAt = entity.CreatedAt,
             UpdatedAt = entity.UpdatedAt,
             DivineAnswerStatus = entity.AuthorResponseStatus,
             AuthorResponseMessage = entity.AuthorResponseMessage,

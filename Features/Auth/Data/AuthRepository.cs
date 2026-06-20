@@ -3,22 +3,41 @@ using EbenezerBackend.Features.Auth.Domain.Entities;
 using EbenezerBackend.Features.Auth.Domain.Repositories;
 using EbenezerBackend.Shared.Data;
 using Microsoft.AspNetCore.Identity;
+using MongoDB.Driver;
 
 namespace EbenezerBackend.Features.Auth.Data;
 
-public class AuthRepository : BaseRepository<AuthUserModel>, IAuthRepository, IUserPasswordStore<AuthUserEntity>
+public class AuthRepository(IMongoDatabase database) : BaseRepository<AuthUserModel>, IAuthRepository, IUserPasswordStore<AuthUserEntity>
 {
-    // IAuthRepository methods
-    public Task<AuthUserEntity> RegisterUserAsync(AuthUserEntity authUser)
-        => throw new NotImplementedException();
+    private readonly IMongoCollection<AuthUserModel> _collection = database.GetCollection<AuthUserModel>(CollectionName);
 
-    public Task<AuthUserEntity?> FindByUserName(string userName)
-        => throw new NotImplementedException();
+    // ── IAuthRepository ────────────────────────────────────────────────────────
 
-    public Task<bool> UserExistsByUserNameOrEmail(string userName, string email)
-        => throw new NotImplementedException();
+    public async Task<AuthUserEntity> RegisterUserAsync(AuthUserEntity authUser)
+    {
+        var model = AuthUserModel.FromEntity(authUser);
+        await _collection.InsertOneAsync(model);
+        return authUser;
+    }
 
-    // IUserPasswordStore methods
+    public async Task<AuthUserEntity?> FindByUserName(string userName)
+    {
+        var filter = Builders<AuthUserModel>.Filter.Eq(x => x.UserName, userName);
+        var model = await _collection.Find(filter).FirstOrDefaultAsync();
+        return model?.ToEntity();
+    }
+
+    public async Task<bool> UserExistsByUserNameOrEmail(string userName, string email)
+    {
+        var filter = Builders<AuthUserModel>.Filter.Or(
+            Builders<AuthUserModel>.Filter.Eq(x => x.UserName, userName),
+            Builders<AuthUserModel>.Filter.Eq(x => x.Email, email)
+        );
+        return await _collection.Find(filter).AnyAsync();
+    }
+
+    // ── IUserPasswordStore ─────────────────────────────────────────────────────
+
     public Task<string> GetUserIdAsync(AuthUserEntity authUser, CancellationToken ct)
         => Task.FromResult(authUser.Id);
 
@@ -40,17 +59,62 @@ public class AuthRepository : BaseRepository<AuthUserModel>, IAuthRepository, IU
         return Task.CompletedTask;
     }
 
-    public Task<IdentityResult> CreateAsync(AuthUserEntity authUser, CancellationToken ct)
-        => throw new NotImplementedException();
+    public async Task<IdentityResult> CreateAsync(AuthUserEntity authUser, CancellationToken ct)
+    {
+        try
+        {
+            var model = AuthUserModel.FromEntity(authUser);
+            await _collection.InsertOneAsync(model, cancellationToken: ct);
+            return IdentityResult.Success;
+        }
+        catch (Exception ex)
+        {
+            return IdentityResult.Failed(new IdentityError { Description = ex.Message });
+        }
+    }
 
-    public Task<IdentityResult> UpdateAsync(AuthUserEntity authUser, CancellationToken ct)
-        => throw new NotImplementedException();
+    public async Task<IdentityResult> UpdateAsync(AuthUserEntity authUser, CancellationToken ct)
+    {
+        try
+        {
+            var filter = Builders<AuthUserModel>.Filter.Eq(x => x.Id, authUser.Id);
+            var model = AuthUserModel.FromEntity(authUser);
+            await _collection.ReplaceOneAsync(filter, model, cancellationToken: ct);
+            return IdentityResult.Success;
+        }
+        catch (Exception ex)
+        {
+            return IdentityResult.Failed(new IdentityError { Description = ex.Message });
+        }
+    }
 
-    public Task<AuthUserEntity?> FindByIdAsync(string userId, CancellationToken ct)
-        => throw new NotImplementedException();
+    public async Task<IdentityResult> DeleteAsync(AuthUserEntity authUser, CancellationToken ct)
+    {
+        try
+        {
+            var filter = Builders<AuthUserModel>.Filter.Eq(x => x.Id, authUser.Id);
+            await _collection.DeleteOneAsync(filter, cancellationToken: ct);
+            return IdentityResult.Success;
+        }
+        catch (Exception ex)
+        {
+            return IdentityResult.Failed(new IdentityError { Description = ex.Message });
+        }
+    }
 
-    public Task<AuthUserEntity?> FindByNameAsync(string normalizedUserName, CancellationToken ct)
-        => throw new NotImplementedException();
+    public async Task<AuthUserEntity?> FindByIdAsync(string userId, CancellationToken ct)
+    {
+        var filter = Builders<AuthUserModel>.Filter.Eq(x => x.Id, userId);
+        var model = await _collection.Find(filter).FirstOrDefaultAsync(ct);
+        return model?.ToEntity();
+    }
+
+    public async Task<AuthUserEntity?> FindByNameAsync(string normalizedUserName, CancellationToken ct)
+    {
+        var filter = Builders<AuthUserModel>.Filter.Eq(x => x.NormalizedUserName, normalizedUserName);
+        var model = await _collection.Find(filter).FirstOrDefaultAsync(ct);
+        return model?.ToEntity();
+    }
 
     public Task SetPasswordHashAsync(AuthUserEntity authUser, string? passwordHash, CancellationToken ct)
     {
@@ -63,9 +127,6 @@ public class AuthRepository : BaseRepository<AuthUserModel>, IAuthRepository, IU
 
     public Task<bool> HasPasswordAsync(AuthUserEntity authUser, CancellationToken ct)
         => Task.FromResult(!string.IsNullOrEmpty(authUser.PasswordHash));
-
-    public Task<IdentityResult> DeleteAsync(AuthUserEntity authUser, CancellationToken ct)
-        => throw new NotImplementedException();
 
     public void Dispose() { }
 }

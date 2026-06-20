@@ -2,22 +2,29 @@ using EbenezerBackend.Features.Profile.Domain.Entities;
 using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.CustomAttributes;
 using EbenezerBackend.Shared.Data;
+using MongoDB.Bson.Serialization.Attributes;
 
 namespace EbenezerBackend.Features.Profile.Data.Models;
 
 [CollectionName(DbCollections.Users)]
-public class ProfileModel(string userName, string fullName, string bio, string phone) : IBaseModel<ProfileModel, ProfileEntity>
+[BsonIgnoreExtraElements]
+public class ProfileModel : IBaseModel<ProfileModel, ProfileEntity>
 {
-    public string? Key { get; set; }
-    public readonly string UserName = userName;
-    public readonly string FullName = fullName;
-    public readonly string Bio = bio;
-    public readonly string Phone = phone;
+    [BsonId]
+    public string? Id { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
+    public string Bio { get; set; } = string.Empty;
+    public string Phone { get; set; } = string.Empty;
 
-    public ProfileEntity ToEntity() => new(id: Key, username: UserName,fullName: FullName,bio: Bio,phone: Phone);
+    public ProfileEntity ToEntity() => new(username: UserName, fullName: FullName, bio: Bio, phone: Phone, id: Id);
 
-    public static ProfileModel FromEntity(ProfileEntity entity) => new(entity.UserName, entity.FullName, entity.Bio, entity.Phone) 
+    public static ProfileModel FromEntity(ProfileEntity entity) => new()
     {
-        Key = entity.Id
+        Id = entity.Id,
+        UserName = entity.UserName,
+        FullName = entity.FullName,
+        Bio = entity.Bio,
+        Phone = entity.Phone
     };
 }

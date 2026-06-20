@@ -17,6 +17,8 @@ public static class Neo4JServicesExtensions
         );
         services.AddSingleton<IDriver>(driver);
 
+        services.AddSingleton<INeo4JExecutor, Neo4JExecutor>();
+
         return services;
     }
 }

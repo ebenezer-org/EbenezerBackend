@@ -2,7 +2,7 @@ namespace EbenezerBackend.Shared.Data;
 
 public static class DbEdges
 {
-    public const string Friendships = "Friendships";
+    public const string Friendships = "FRIENDSHIP";
     public const string PostedBy = "PostedBy";
     public const string CreatedCategory = "CreatedCategory";
     public const string CategorizedAs = "CategorizedAs";

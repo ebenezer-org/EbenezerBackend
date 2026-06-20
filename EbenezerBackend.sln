@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EbenezerBackend", "Ebenezer
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EbenezerBackend.LoadTests", "..\EbenezerBackend.LoadTests\EbenezerBackend.LoadTests.csproj", "{FEA20008-544B-4FC0-A693-53C5F721A401}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EbenezerBackend.UnitTests", "..\EbenezerBackend.UnitTests\EbenezerBackend.UnitTests.csproj", "{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,18 @@ Global
 		{FEA20008-544B-4FC0-A693-53C5F721A401}.Release|x64.Build.0 = Release|Any CPU
 		{FEA20008-544B-4FC0-A693-53C5F721A401}.Release|x86.ActiveCfg = Release|Any CPU
 		{FEA20008-544B-4FC0-A693-53C5F721A401}.Release|x86.Build.0 = Release|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Debug|x64.Build.0 = Debug|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Debug|x86.Build.0 = Debug|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Release|x64.ActiveCfg = Release|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Release|x64.Build.0 = Release|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Release|x86.ActiveCfg = Release|Any CPU
+		{2B8C9D4E-1F3A-4B5C-9D6E-7A8B9C0D1E2F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
