@@ -21,10 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="EbenezerBackend.UnitTests" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Folder Include="Features\Profile\Domain\Exceptions\" />
     <Folder Include="Features\Profile\Domain\Services\Implementations\" />
     <Folder Include="Features\Profile\Domain\Services\Interfaces\" />

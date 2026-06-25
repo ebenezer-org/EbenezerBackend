@@ -5,36 +5,18 @@ services:
       context: "D:\\ebenezer\\EbenezerBackend"
       dockerfile: "Dockerfile"
       target: "base"
-      args:
-        BUILD_CONFIGURATION: "Debug"
     command: []
     entrypoint:
-    - "/opt/JetBrains/RiderDebuggerTools/linux-x64/JetBrains.Debugger.Worker"
-    - "--runtimeconfig"
-    - "/opt/JetBrains/RiderDebuggerTools/JetBrains.Debugger.Worker.runtimeconfig.json"
-    - "--mode=server"
-    - "--frontend-port=57000"
-    - "--backend-port=57200"
-    - "--roslyn-worker-port=57406"
-    - "--timeout=60"
+    - "dotnet"
+    - "/app/bin/Debug/net10.0/EbenezerBackend.dll"
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
-      RIDER_DEBUGGER_LOG_DIR: "/var/opt/JetBrains/RiderDebuggerTools"
-      RESHARPER_LOG_CONF: "/etc/opt/JetBrains/RiderDebuggerTools/backend-log.xml"
     image: "ebenezer-backend:dev"
-    ports:
-    - "127.0.0.1:57006:57000"
-    - "127.0.0.1:57206:57200"
-    - "127.0.0.1:57406:57406"
+    ports: []
     volumes:
     - "D:\\ebenezer\\EbenezerBackend:/app:rw"
     - "D:\\ebenezer\\EbenezerBackend:/src:rw"
     - "C:\\Users\\rapha\\AppData\\Roaming\\Microsoft\\UserSecrets:/home/app/.microsoft/usersecrets"
     - "C:\\Users\\rapha\\.nuget\\packages:/home/app/.nuget/packages"
-    - "C:\\Users\\rapha\\AppData\\Local\\JetBrains\\RiderRemoteDebugger\\2025.3.2\\\
-      Linux64:/opt/JetBrains/RiderDebuggerTools"
-    - "D:\\Program Files\\JetBrains\\JetBrains Rider 2025.3.2\\bin\\backend-log.xml:/etc/opt/JetBrains/RiderDebuggerTools/backend-log.xml"
-    - "C:\\Users\\rapha\\AppData\\Local\\JetBrains\\Rider2025.3\\log\\DebuggerWorker\\\
-      JetBrains.Debugger.Worker.2026_6_20_19_19_52:/var/opt/JetBrains/RiderDebuggerTools:rw"
     working_dir: "/app"

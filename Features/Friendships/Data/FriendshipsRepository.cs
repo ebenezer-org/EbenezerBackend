@@ -11,9 +11,6 @@ using Neo4j.Driver;
 
 namespace EbenezerBackend.Features.Friendships.Data;
 
-// Polyglot "pointer map" model: Neo4j stores only the relationships and the user node ids
-// (lightweight pointers). All human-readable user details (userName, fullName) are the
-// source-of-truth in MongoDB and are hydrated here after the graph traversal returns ids.
 public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase database)
     : BaseRepository<FriendshipEdgeModel>, IFriendshipsRepository
 {
@@ -119,7 +116,7 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
             requestedAt
         }, ReadEdge, ct);
 
-        var profiles = await LoadProfilesAsync(new[] { edge.FromId, edge.ToId }, ct);
+        var profiles = await LoadProfilesAsync([edge.FromId, edge.ToId], ct);
         return ToEntity(edge, profiles);
     }
 
@@ -144,7 +141,7 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
             return null;
         }
 
-        var profiles = await LoadProfilesAsync(new[] { edge.FromId, edge.ToId }, ct);
+        var profiles = await LoadProfilesAsync([edge.FromId, edge.ToId], ct);
         return ToEntity(edge, profiles);
     }
 
@@ -164,7 +161,7 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
         }
 
         var edge = edges[0];
-        var profiles = await LoadProfilesAsync(new[] { edge.FromId, edge.ToId }, ct);
+        var profiles = await LoadProfilesAsync([edge.FromId, edge.ToId], ct);
         return ToEntity(edge, profiles);
     }
 
@@ -190,7 +187,7 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
             return null;
         }
 
-        var profiles = await LoadProfilesAsync(new[] { edge.FromId, edge.ToId }, ct);
+        var profiles = await LoadProfilesAsync([edge.FromId, edge.ToId], ct);
         return ToEntity(edge, profiles);
     }
 
