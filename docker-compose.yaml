@@ -20,7 +20,7 @@ services:
     container_name: arangodb
     platform: linux/arm64/v8
     ports:
-      - "${DB_PORT}:8529"
+      - "${ARANGODB_PORT}:8529"
     environment:
       - ARANGO_ROOT_PASSWORD=${ARANGODB_PASSWORD}
     volumes:
