@@ -594,7 +594,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                         AuthorProfileModel: viewer,
                         PrayerModel: myPrayer,
                         Categories: categories,
-                        Interactions: interactions,
+                        Interactions: reactions,
                     }}
             )
     
