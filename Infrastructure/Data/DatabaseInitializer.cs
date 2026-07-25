@@ -79,6 +79,7 @@ public class DatabaseInitializer(
             EnsureCollectionAsync(ArangoDbCollections.Prayers, CollectionType.Document, existingCollections),
             EnsureCollectionAsync(ArangoDbCollections.Categories, CollectionType.Document, existingCollections),
             EnsureCollectionAsync(ArangoDbCollections.EncouragementMessages, CollectionType.Document, existingCollections),
+            EnsureCollectionAsync(ArangoDbCollections.Comments, CollectionType.Document, existingCollections),
         };
 
         await Task.WhenAll(tasks);
@@ -93,7 +94,7 @@ public class DatabaseInitializer(
             EnsureCollectionAsync(ArangoDbEdges.CreatedCategory, CollectionType.Edge, existingCollections),
             EnsureCollectionAsync(ArangoDbEdges.CategorizedAs, CollectionType.Edge, existingCollections),
             EnsureCollectionAsync(ArangoDbEdges.ReactedBy, CollectionType.Edge, existingCollections),
-            EnsureCollectionAsync(ArangoDbEdges.CommentedBy, CollectionType.Edge, existingCollections),
+            EnsureCollectionAsync(ArangoDbEdges.CommentedOn, CollectionType.Edge, existingCollections),
         };
 
         await Task.WhenAll(tasks);

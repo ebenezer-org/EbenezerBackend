@@ -240,10 +240,15 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             UPDATE prayerToUpdate WITH @prayer IN {CollectionName}
             LET updatedPrayer = NEW
 
-            LET removedLinks = (
+            LET edgesToRemove = (
                 FOR edge IN {ArangoDbEdges.CategorizedAs}
                     FILTER edge._from == updatedPrayer._id
-                    REMOVE edge IN {ArangoDbEdges.CategorizedAs}
+                    RETURN edge._key
+            )
+
+            LET removedLinks = (
+                FOR edgeKey IN edgesToRemove
+                    REMOVE edgeKey IN {ArangoDbEdges.CategorizedAs}
                     RETURN OLD
             )
 
@@ -340,9 +345,9 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             )
 
             LET removedComments = (
-                FOR edge IN {ArangoDbEdges.CommentedBy}
+                FOR edge IN {ArangoDbEdges.CommentedOn}
                     FILTER edge._to == prayerToDelete._id
-                    REMOVE edge IN {ArangoDbEdges.CommentedBy}
+                    REMOVE edge IN {ArangoDbEdges.CommentedOn}
                     RETURN OLD
             )
 

@@ -1,5 +1,6 @@
 using EbenezerBackend.Features.Auth;
 using EbenezerBackend.Features.Categories;
+using EbenezerBackend.Features.Comments;
 using EbenezerBackend.Features.Friendships;
 using EbenezerBackend.Features.Prayers;
 using EbenezerBackend.Features.Profile;
@@ -18,7 +19,8 @@ public static class ModulesExtensions
             .AddPrayersModule()
             .AddCategoriesModule()
             .AddFriendshipsModule()
-            .AddRetrospectiveModule();
+            .AddRetrospectiveModule()
+            .AddCommentsModule();
         
         return services;
     }

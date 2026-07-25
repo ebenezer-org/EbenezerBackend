@@ -6,4 +6,5 @@ public static class ArangoDbCollections
     public const string Categories = "Categories";
     public const string Prayers = "Prayers";
     public const string EncouragementMessages = "EncouragementMessages";
+    public const string Comments = "Comments";
 }

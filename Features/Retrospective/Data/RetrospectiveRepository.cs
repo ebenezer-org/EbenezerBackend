@@ -70,9 +70,9 @@ public class RetrospectiveRepository(IArangoDBClient db) : BaseRepository<Encour
             LET interactions = FLATTEN(
                 FOR p IN prayers
                     LET commenters = (
-                        FOR v IN 1..1 ANY p._id {ArangoDbEdges.CommentedBy}
-                            FILTER v._id != @userId
-                            RETURN v._id
+                        FOR v IN 1..1 ANY p._id {ArangoDbEdges.CommentedOn}
+                            FILTER v.AuthorId != @userId
+                            RETURN v.AuthorId
                     )
                     LET reactors = (
                         FOR v IN 1..1 ANY p._id {ArangoDbEdges.ReactedBy}

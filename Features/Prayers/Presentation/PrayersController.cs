@@ -1,5 +1,4 @@
 using EbenezerBackend.Features.Prayers.Domain.Services;
-using EbenezerBackend.Features.Prayers.Presentation.Dtos.AddComment;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Create;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Get;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.List;
@@ -26,7 +25,7 @@ public class PrayersController(IPrayersService prayersService) : ControllerBase
 
     [Authorize]
     [HttpPost("new")]
-    public async Task<ActionResult<CreatePrayerResponseDto>> CreatePost(
+    public async Task<ActionResult<CreatePrayerResponseDto>> CreatePoast(
         [FromBody] CreatePrayerRequestDto request,
         CancellationToken ct)
     {
@@ -78,18 +77,6 @@ public class PrayersController(IPrayersService prayersService) : ControllerBase
         return NoContent();
     }
     
-    [Authorize]
-    [HttpPost("{prayerId}/comment")]
-    public async Task<ActionResult<AddCommentResponseDto>> AddComment(
-        [FromRoute] string prayerId,
-        [FromBody] AddCommentRequestDto request,
-        CancellationToken ct)
-    {
-        var result = await prayersService.AddCommentAsync(prayerId, request, ct);
-
-        return Ok(result);
-    }
-
     [Authorize]
     [HttpGet("timeline")]
     public async Task<ActionResult<PaginatedResponseDto<TimelinePrayerResponseDto>>> GetTimeline(

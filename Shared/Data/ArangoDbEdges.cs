@@ -7,5 +7,5 @@ public static class ArangoDbEdges
     public const string CreatedCategory = "CreatedCategory";
     public const string CategorizedAs = "CategorizedAs";
     public const string ReactedBy = "ReactedBy";
-    public const string CommentedBy = "CommentedBy";
+    public const string CommentedOn = "CommentedOn";
 }
