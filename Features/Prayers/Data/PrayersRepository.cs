@@ -203,7 +203,20 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         IReadOnlyCollection<string> categoryIds,
         CancellationToken ct)
     {
-        var query = $@"
+        var formattedPrayerId = ArangoDbUtils.BuildArangoDbId(prayerId, CollectionName)!;
+
+        var deleteEdgesQuery = $@"
+            FOR edge IN {ArangoDbEdges.CategorizedAs}
+                FILTER edge._from == @prayerId
+                REMOVE edge IN {ArangoDbEdges.CategorizedAs}
+        ";
+        
+        await db.Cursor.PostCursorAsync<object>(
+            deleteEdgesQuery, 
+            new Dictionary<string, object> { { "prayerId", formattedPrayerId } }, 
+            token: ct);
+        
+        var updateQuery = $@"
             LET user = FIRST(
                 FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @userName
@@ -213,53 +226,35 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
 
             FILTER user != null
 
-            LET prayerToUpdate = FIRST(
-                FOR currentPrayer IN {CollectionName}
-                    FILTER currentPrayer._key == @prayerId || currentPrayer._id == @prayerId
-                    LET ownerLink = FIRST(
-                        FOR edge IN {ArangoDbEdges.PostedBy}
-                            FILTER edge._from == user._id && edge._to == currentPrayer._id
-                            LIMIT 1
-                            RETURN edge
-                    )
-                    FILTER ownerLink != null
-                    RETURN currentPrayer
+            LET prayerToUpdate = DOCUMENT(@prayerId)
+            FILTER prayerToUpdate != null
+
+            LET ownerLink = FIRST(
+                FOR edge IN {ArangoDbEdges.PostedBy}
+                    FILTER edge._from == user._id && edge._to == prayerToUpdate._id
+                    LIMIT 1
+                    RETURN edge
             )
 
-            FILTER prayerToUpdate != null
+            FILTER ownerLink != null
 
             LET categories = LENGTH(@categoryIds) == 0 ? [] : (
                 FOR currentCategory IN {ArangoDbCollections.Categories}
                     FILTER currentCategory._key IN @categoryIds || currentCategory._id IN @categoryIds
-                    FILTER currentCategory.IsPublic == true || currentCategory.OwnerUsername == @userName
+                    FILTER currentCategory.OwnerUsername == @userName
                     RETURN currentCategory
             )
 
             FILTER LENGTH(@categoryIds) == 0 || LENGTH(categories) == LENGTH(@categoryIds)
 
-            UPDATE prayerToUpdate WITH @prayer IN {CollectionName}
-            LET updatedPrayer = NEW
-
-            LET edgesToRemove = (
-                FOR edge IN {ArangoDbEdges.CategorizedAs}
-                    FILTER edge._from == updatedPrayer._id
-                    RETURN edge._key
-            )
-
-            LET removedLinks = (
-                FOR edgeKey IN edgesToRemove
-                    REMOVE edgeKey IN {ArangoDbEdges.CategorizedAs}
-                    RETURN OLD
-            )
-
+            // Only ONE modification operation on CategorizedAs in this query
             LET newLinks = (
                 FOR category IN categories
                     INSERT {{
-                        _from: updatedPrayer._id,
+                        _from: prayerToUpdate._id,
                         _to: category._id,
                         CreatedAt: DATE_ISO8601(DATE_NOW())
                     }} INTO {ArangoDbEdges.CategorizedAs}
-                    RETURN NEW
             )
 
             LET categoriesResult = (
@@ -271,6 +266,9 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                     }}
             )
 
+            UPDATE prayerToUpdate WITH @prayer IN {CollectionName}
+            LET updatedPrayer = NEW
+
             RETURN {{
                 AuthorProfileModel: user,
                 PrayerModel: updatedPrayer,
@@ -281,7 +279,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         var bindVars = new Dictionary<string, object>
         {
             { "userName", ownerUserName },
-            { "prayerId", prayerId },
+            { "prayerId", formattedPrayerId },
             { "categoryIds", categoryIds },
             {
                 "prayer",
@@ -294,7 +292,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
             }
         };
 
-        var response = await db.Cursor.PostCursorAsync<ListPrayerRepositoryResponseDto>(query, bindVars, token: ct);
+        var response = await db.Cursor.PostCursorAsync<ListPrayerRepositoryResponseDto>(updateQuery, bindVars, token: ct);
 
         return response.Result.FirstOrDefault();
     }

@@ -15,7 +15,7 @@ services:
     - "--mode=server"
     - "--frontend-port=57000"
     - "--backend-port=57200"
-    - "--roslyn-worker-port=57416"
+    - "--roslyn-worker-port=57401"
     - "--timeout=60"
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
@@ -24,9 +24,9 @@ services:
       RESHARPER_LOG_CONF: "/etc/opt/JetBrains/RiderDebuggerTools/backend-log.xml"
     image: "ebenezer-backend:dev"
     ports:
-    - "127.0.0.1:57016:57000"
-    - "127.0.0.1:57216:57200"
-    - "127.0.0.1:57416:57416"
+    - "127.0.0.1:57001:57000"
+    - "127.0.0.1:57201:57200"
+    - "127.0.0.1:57401:57401"
     volumes:
     - "D:\\ebenezer\\EbenezerBackend:/app:rw"
     - "D:\\ebenezer\\EbenezerBackend:/src:rw"
@@ -36,5 +36,5 @@ services:
       Linux64:/opt/JetBrains/RiderDebuggerTools"
     - "D:\\Program Files\\JetBrains\\JetBrains Rider 2025.3.2\\bin\\backend-log.xml:/etc/opt/JetBrains/RiderDebuggerTools/backend-log.xml"
     - "C:\\Users\\rapha\\AppData\\Local\\JetBrains\\Rider2025.3\\log\\DebuggerWorker\\\
-      JetBrains.Debugger.Worker.2026_7_25_01_02_13:/var/opt/JetBrains/RiderDebuggerTools:rw"
+      JetBrains.Debugger.Worker.2026_7_27_19_10_28:/var/opt/JetBrains/RiderDebuggerTools:rw"
     working_dir: "/app"
