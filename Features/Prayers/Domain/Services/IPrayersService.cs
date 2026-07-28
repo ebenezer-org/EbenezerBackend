@@ -1,4 +1,3 @@
-using EbenezerBackend.Features.Prayers.Presentation.Dtos.AddComment;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Create;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Get;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.List;
@@ -19,5 +18,4 @@ public interface IPrayersService
     Task RemoveSupportReactionAsync(string prayerId, CancellationToken ct);
     Task<PaginatedResponseDto<TimelinePrayerResponseDto>> GetTimelineAsync(int page, int pageSize, CancellationToken ct);
     Task<IReadOnlyCollection<ListPrayerResponseDto>> SearchPrayersAsync(SearchPrayersRequestDto request, CancellationToken ct);
-    Task<AddCommentResponseDto> AddCommentAsync(string prayerId, AddCommentRequestDto request, CancellationToken ct);
 }

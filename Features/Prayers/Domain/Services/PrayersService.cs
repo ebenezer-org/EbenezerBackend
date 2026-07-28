@@ -3,7 +3,6 @@ using EbenezerBackend.Features.Prayers.Domain.Exceptions;
 using EbenezerBackend.Features.Prayers.Domain.Repositories;
 using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.Insert;
 using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.Shared;
-using EbenezerBackend.Features.Prayers.Presentation.Dtos.AddComment;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Create;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Get;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.List;
@@ -184,11 +183,6 @@ public class PrayersService(IPrayersRepository prayersRepository, IUserContext u
         }).ToList();
     }
     
-    public Task<AddCommentResponseDto> AddCommentAsync(string prayerId, AddCommentRequestDto request, CancellationToken ct)
-    {
-        throw new NotImplementedException();
-    }
-
     private static IReadOnlyCollection<PrayerCategoryResponseDto> ToCategoriesResponse(
         IReadOnlyCollection<PrayerCategoryPartialDto> categories)
         => categories.Select(category => new PrayerCategoryResponseDto(category.Id, category.Name, category.ColorHex)).ToList();

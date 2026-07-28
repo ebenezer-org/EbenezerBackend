@@ -1,5 +1,4 @@
 using EbenezerBackend.Features.Prayers.Domain.Services;
-using EbenezerBackend.Features.Prayers.Presentation.Dtos.AddComment;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Create;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.Get;
 using EbenezerBackend.Features.Prayers.Presentation.Dtos.List;
@@ -76,18 +75,6 @@ public class PrayersController(IPrayersService prayersService) : ControllerBase
         await prayersService.RemoveSupportReactionAsync(prayerId, ct);
 
         return NoContent();
-    }
-    
-    [Authorize]
-    [HttpPost("{prayerId}/comment")]
-    public async Task<ActionResult<AddCommentResponseDto>> AddComment(
-        [FromRoute] string prayerId,
-        [FromBody] AddCommentRequestDto request,
-        CancellationToken ct)
-    {
-        var result = await prayersService.AddCommentAsync(prayerId, request, ct);
-
-        return Ok(result);
     }
 
     [Authorize]
