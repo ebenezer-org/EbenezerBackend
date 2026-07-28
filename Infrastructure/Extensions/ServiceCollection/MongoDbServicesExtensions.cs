@@ -17,6 +17,8 @@ public static class MongoDbServicesExtensions
         var database = client.GetDatabase(settings.DatabaseName);
         services.AddSingleton<IMongoDatabase>(database);
 
+        services.AddSingleton<MongoDbInitializer>();
+
         return services;
     }
 }

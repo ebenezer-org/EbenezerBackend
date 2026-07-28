@@ -1,4 +1,5 @@
 using EbenezerBackend.Docs.Scalar;
+using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Infrastructure.Extensions.ServiceCollection;
 using EbenezerBackend.Infrastructure.Middleware;
 using EbenezerBackend.Shared.Configurations;
@@ -27,6 +28,9 @@ builder.Services.AddOpenApi(options =>
 });
 
 var app = builder.Build();
+
+// Inicialização do banco: índices e seed de dados necessários.
+await app.Services.GetRequiredService<MongoDbInitializer>().InitializeAsync();
 
 if (app.Environment.IsDevelopment())
 {
