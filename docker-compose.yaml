@@ -18,7 +18,6 @@ services:
   database:
     image: arangodb:3.12.7.1
     container_name: arangodb
-    platform: linux/arm64/v8
     ports:
       - "${ARANGODB_PORT}:8529"
     environment:
