@@ -31,6 +31,7 @@ var app = builder.Build();
 
 // Inicialização do banco: índices e seed de dados necessários.
 await app.Services.GetRequiredService<MongoDbInitializer>().InitializeAsync();
+await app.Services.GetRequiredService<Neo4JDbInitializer>().InitializeAsync();
 
 if (app.Environment.IsDevelopment())
 {
