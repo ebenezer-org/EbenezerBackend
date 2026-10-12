@@ -1,6 +1,23 @@
+# ---------------------------------------------------------------------------
+# Limites de recursos (benchmark)
+#
+# Os limites vêm de variáveis, com perfil "medium" como padrão. Para trocar de perfil
+# sem editar este arquivo:
+#   docker compose --env-file .env --env-file limits/small.env up -d --build
+#   docker compose --env-file .env --env-file limits/medium.env up -d --build
+#   docker compose --env-file .env --env-file limits/large.env up -d --build
+#
+# O orçamento TOTAL da camada de dados é igual ao da branch multimodel-approach
+# (ArangoDB = Mongo + Neo4j), e a API tem o mesmo limite nas duas abordagens.
+# `memswap_limit` igual a `mem_limit` desabilita swap, que mascararia falta de memória.
+# ---------------------------------------------------------------------------
 services:
   api:
     image: ebenezer-backend
+    container_name: ebenezer-api
+    cpus: ${API_CPUS:-4}
+    mem_limit: ${API_MEM:-4g}
+    memswap_limit: ${API_MEM:-4g}
     build:
       context: .
       dockerfile: Dockerfile
@@ -35,6 +52,9 @@ services:
   mongodb:
     image: mongo:8.0
     container_name: ebenezer-mongodb
+    cpus: ${MONGODB_CPUS:-2}
+    mem_limit: ${MONGODB_MEM:-3g}
+    memswap_limit: ${MONGODB_MEM:-3g}
     ports:
       - "${MONGODB_PORT}:27017"
     environment:
@@ -53,11 +73,19 @@ services:
   neo4j:
     image: neo4j:5.26-community
     container_name: ebenezer-neo4j
+    cpus: ${NEO4J_CPUS:-2}
+    mem_limit: ${NEO4J_MEM:-5g}
+    memswap_limit: ${NEO4J_MEM:-5g}
     ports:
       - "${NEO4J_HTTP_PORT}:7474"
       - "${NEO4J_BOLT_PORT}:7687"
     environment:
       - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
+      # Heap + page cache fixos e menores que o limite do contêiner (o restante é
+      # sobrecarga da JVM e do sistema). Heap inicial = máximo evita redimensionamento.
+      - NEO4J_server_memory_heap_initial__size=${NEO4J_HEAP:-2g}
+      - NEO4J_server_memory_heap_max__size=${NEO4J_HEAP:-2g}
+      - NEO4J_server_memory_pagecache_size=${NEO4J_PAGECACHE:-2g}
       - NEO4J_PLUGINS=["apoc"]
       - NEO4J_dbms_security_procedures_unrestricted=apoc.*
     volumes:
