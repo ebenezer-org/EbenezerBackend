@@ -2,39 +2,20 @@
 services:
   api:
     build:
-      context: "D:\\ebenezer\\EbenezerBackend"
+      context: "C:\\Users\\r.leiva_unesp\\Documents\\tcc\\EbenezerBackend"
       dockerfile: "Dockerfile"
       target: "base"
-      args:
-        BUILD_CONFIGURATION: "Debug"
     command: []
     entrypoint:
-    - "/opt/JetBrains/RiderDebuggerTools/linux-x64/JetBrains.Debugger.Worker"
-    - "--runtimeconfig"
-    - "/opt/JetBrains/RiderDebuggerTools/JetBrains.Debugger.Worker.runtimeconfig.json"
-    - "--mode=server"
-    - "--frontend-port=57000"
-    - "--backend-port=57200"
-    - "--roslyn-worker-port=57410"
-    - "--timeout=60"
+    - "dotnet"
+    - "/app/bin/Debug/net10.0/EbenezerBackend.dll"
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       DOTNET_USE_POLLING_FILE_WATCHER: "true"
-      RIDER_DEBUGGER_LOG_DIR: "/var/opt/JetBrains/RiderDebuggerTools"
-      RESHARPER_LOG_CONF: "/etc/opt/JetBrains/RiderDebuggerTools/backend-log.xml"
     image: "ebenezer-backend:dev"
-    ports:
-    - "127.0.0.1:57010:57000"
-    - "127.0.0.1:57210:57200"
-    - "127.0.0.1:57410:57410"
+    ports: []
     volumes:
-    - "D:\\ebenezer\\EbenezerBackend:/app:rw"
-    - "D:\\ebenezer\\EbenezerBackend:/src:rw"
-    - "C:\\Users\\rapha\\AppData\\Roaming\\Microsoft\\UserSecrets:/home/app/.microsoft/usersecrets"
-    - "C:\\Users\\rapha\\.nuget\\packages:/home/app/.nuget/packages"
-    - "C:\\Users\\rapha\\AppData\\Local\\JetBrains\\RiderRemoteDebugger\\2025.3.2\\\
-      Linux64:/opt/JetBrains/RiderDebuggerTools"
-    - "D:\\Program Files\\JetBrains\\JetBrains Rider 2025.3.2\\bin\\backend-log.xml:/etc/opt/JetBrains/RiderDebuggerTools/backend-log.xml"
-    - "C:\\Users\\rapha\\AppData\\Local\\JetBrains\\Rider2025.3\\log\\DebuggerWorker\\\
-      JetBrains.Debugger.Worker.2026_7_29_23_25_47:/var/opt/JetBrains/RiderDebuggerTools:rw"
+    - "C:\\Users\\r.leiva_unesp\\Documents\\tcc\\EbenezerBackend:/app:rw"
+    - "C:\\Users\\r.leiva_unesp\\Documents\\tcc\\EbenezerBackend:/src:rw"
+    - "C:\\Users\\r.leiva_unesp\\.nuget\\packages:/home/app/.nuget/packages"
     working_dir: "/app"
