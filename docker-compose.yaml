@@ -1,6 +1,23 @@
+# ---------------------------------------------------------------------------
+# Limites de recursos (benchmark)
+#
+# Os limites vêm de variáveis, com perfil "medium" como padrão. Para trocar de perfil
+# sem editar este arquivo:
+#   docker compose --env-file .env --env-file limits/small.env up -d --build
+#   docker compose --env-file .env --env-file limits/medium.env up -d --build
+#   docker compose --env-file .env --env-file limits/large.env up -d --build
+#
+# O orçamento da camada de dados (ArangoDB) é igual ao TOTAL da branch
+# heterogeneous-approach (Mongo + Neo4j), e a API tem o mesmo limite nas duas abordagens.
+# `memswap_limit` igual a `mem_limit` desabilita swap, que mascararia falta de memória.
+# ---------------------------------------------------------------------------
 services:
   api:
     image: ebenezer-backend
+    container_name: ebenezer-api
+    cpus: ${API_CPUS:-4}
+    mem_limit: ${API_MEM:-4g}
+    memswap_limit: ${API_MEM:-4g}
     build: 
       context: .
       dockerfile: Dockerfile
@@ -18,10 +35,16 @@ services:
   database:
     image: arangodb:3.12.7.1
     container_name: arangodb
+    cpus: ${ARANGODB_CPUS:-4}
+    mem_limit: ${ARANGODB_MEM:-8g}
+    memswap_limit: ${ARANGODB_MEM:-8g}
     ports:
       - "${ARANGODB_PORT}:8529"
     environment:
       - ARANGO_ROOT_PASSWORD=${ARANGODB_PASSWORD}
+      # O ArangoDB não detecta o limite de memória do contêiner: sem isto, ele dimensiona
+      # seus caches pela RAM do hospedeiro. Valor em bytes, igual ao mem_limit acima.
+      - ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY=${ARANGODB_TOTAL_MEMORY_BYTES:-8589934592}
     volumes:
       - arangodb_data:/var/lib/arangodb3
 
