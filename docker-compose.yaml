@@ -2,6 +2,7 @@ services:
   api:
     image: ebenezer-backend
     container_name: ebenezer-api
+    memswap_limit: ${API_MEM:-4g}
     deploy:
       resources:
         limits:
@@ -41,6 +42,7 @@ services:
   mongodb:
     image: mongo:8.0
     container_name: ebenezer-mongodb
+    memswap_limit: ${MONGODB_MEM:-3g}
     deploy:
       resources:
         limits:
@@ -64,6 +66,7 @@ services:
   neo4j:
     image: neo4j:5.26-community
     container_name: ebenezer-neo4j
+    memswap_limit: ${NEO4J_MEM:-5g}
     deploy:
       resources:
         limits:
