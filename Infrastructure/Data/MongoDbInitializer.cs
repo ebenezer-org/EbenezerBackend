@@ -31,6 +31,12 @@ public class MongoDbInitializer(IMongoDatabase database, ILogger<MongoDbInitiali
             "idx_unique_username",
             unique: true);
 
+        await EnsureUniqueIndexAsync<dynamic>(
+            DbCollections.Users,
+            Builders<dynamic>.IndexKeys.Ascending("Email"),
+            "idx_unique_email",
+            unique: true);
+
         await EnsureIndexAsync<dynamic>(
             DbCollections.Categories,
             Builders<dynamic>.IndexKeys.Ascending("OwnerUsername"),
@@ -40,11 +46,6 @@ public class MongoDbInitializer(IMongoDatabase database, ILogger<MongoDbInitiali
             DbCollections.Categories,
             Builders<dynamic>.IndexKeys.Ascending("IsPublic"),
             "idx_categories_is_public");
-
-        await EnsureIndexAsync<dynamic>(
-            DbCollections.Prayers,
-            Builders<dynamic>.IndexKeys.Ascending("IsPublic"),
-            "idx_prayers_is_public");
 
         await EnsureIndexAsync<dynamic>(
             DbCollections.Prayers,
@@ -62,6 +63,14 @@ public class MongoDbInitializer(IMongoDatabase database, ILogger<MongoDbInitiali
                 .Ascending("ParentId")
                 .Ascending("ParentType"),
             "idx_comments_parent");
+
+        // Listagem pública: filtro por visibilidade + ordenação por CreatedAt (equivalente ao composto do Arango).
+        await EnsureIndexAsync<dynamic>(
+            DbCollections.Prayers,
+            Builders<dynamic>.IndexKeys
+                .Ascending("IsPublic")
+                .Ascending("CreatedAt"),
+            "idx_prayers_is_public_created_at");
     }
 
     private async Task EnsureUniqueIndexAsync<T>(

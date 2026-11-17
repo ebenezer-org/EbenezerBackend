@@ -14,10 +14,6 @@ public class AuthService(
 {
     public async Task<string> RegisterAsync(string userName, string email, string password)
     {
-        var userExists = await repository.UserExistsByUserNameOrEmail(userName, email);
-
-        if (userExists) throw new UserNameOrEmailAlreadyRegisteredException();
-        
         var userEntity = new AuthUserEntity()
         {
             Email = email,

@@ -1,6 +1,8 @@
 using EbenezerBackend.Features.Auth.Data.Models;
 using EbenezerBackend.Features.Auth.Domain.Entities;
+using EbenezerBackend.Features.Auth.Domain.Exceptions;
 using EbenezerBackend.Features.Auth.Domain.Repositories;
+using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.Data;
 using Microsoft.AspNetCore.Identity;
 using MongoDB.Driver;
@@ -16,7 +18,17 @@ public class AuthRepository(IMongoDatabase database) : BaseRepository<AuthUserMo
     public async Task<AuthUserEntity> RegisterUserAsync(AuthUserEntity authUser)
     {
         var model = AuthUserModel.FromEntity(authUser);
-        await _collection.InsertOneAsync(model);
+
+        try
+        {
+            await _collection.InsertOneAsync(model);
+        }
+        catch (MongoWriteException ex) when (MongoDbErrorTranslator.IsDuplicateKey(ex))
+        {
+            // Unicidade garantida pelos índices únicos de UserName e Email (código 11000).
+            throw new UserNameOrEmailAlreadyRegisteredException();
+        }
+
         return authUser;
     }
 
@@ -25,15 +37,6 @@ public class AuthRepository(IMongoDatabase database) : BaseRepository<AuthUserMo
         var filter = Builders<AuthUserModel>.Filter.Eq(x => x.UserName, userName);
         var model = await _collection.Find(filter).FirstOrDefaultAsync();
         return model?.ToEntity();
-    }
-
-    public async Task<bool> UserExistsByUserNameOrEmail(string userName, string email)
-    {
-        var filter = Builders<AuthUserModel>.Filter.Or(
-            Builders<AuthUserModel>.Filter.Eq(x => x.UserName, userName),
-            Builders<AuthUserModel>.Filter.Eq(x => x.Email, email)
-        );
-        return await _collection.Find(filter).AnyAsync();
     }
 
     // ── IUserPasswordStore ─────────────────────────────────────────────────────
@@ -111,7 +114,8 @@ public class AuthRepository(IMongoDatabase database) : BaseRepository<AuthUserMo
 
     public async Task<AuthUserEntity?> FindByNameAsync(string normalizedUserName, CancellationToken ct)
     {
-        var filter = Builders<AuthUserModel>.Filter.Eq(x => x.NormalizedUserName, normalizedUserName);
+        // Campo normalizado não é persistido (igual ao ArangoDB); método não é chamado pela aplicação.
+        var filter = Builders<AuthUserModel>.Filter.Eq("NormalizedUserName", normalizedUserName);
         var model = await _collection.Find(filter).FirstOrDefaultAsync(ct);
         return model?.ToEntity();
     }
