@@ -7,5 +7,4 @@ public interface IAuthRepository
 {
     Task<AuthUserEntity> RegisterUserAsync(AuthUserEntity authUser);
     Task<AuthUserEntity?> FindByUserName(string userName);
-    Task<bool> UserExistsByUserNameOrEmail(string userName, string email);
 }

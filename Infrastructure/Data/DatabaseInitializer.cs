@@ -103,10 +103,11 @@ public class DatabaseInitializer(
     private async Task CreateIndexes()
     {
         await EnsureUniqueIndexAsync(ArangoDbCollections.Users, ["UserName"], "idx_unique_username");
+        await EnsureUniqueIndexAsync(ArangoDbCollections.Users, ["Email"], "idx_unique_email");
         await EnsurePersistentIndexAsync(ArangoDbCollections.Categories, ["OwnerUsername"], "idx_categories_owner_username");
         await EnsurePersistentIndexAsync(ArangoDbCollections.Categories, ["IsPublic"], "idx_categories_is_public");
-        await EnsurePersistentIndexAsync(ArangoDbCollections.Prayers, ["IsPublic"], "idx_prayers_is_public");
         await EnsurePersistentIndexAsync(ArangoDbCollections.Prayers, ["CreatedAt"], "idx_prayers_created_at");
+        await EnsurePersistentIndexAsync(ArangoDbCollections.Prayers, ["IsPublic", "CreatedAt"], "idx_prayers_is_public_created_at");
     }
 
     private async Task EnsureCollectionAsync(string name, CollectionType type, List<string> existing)

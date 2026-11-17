@@ -6,7 +6,9 @@ using ArangoDBNetStandard;
 using ArangoDBNetStandard.DocumentApi.Models;
 using EbenezerBackend.Features.Auth.Data.Models;
 using EbenezerBackend.Features.Auth.Domain.Entities;
+using EbenezerBackend.Features.Auth.Domain.Exceptions;
 using EbenezerBackend.Features.Auth.Domain.Repositories;
+using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared;
 using EbenezerBackend.Shared.Data;
 using Microsoft.AspNetCore.Identity;
@@ -20,13 +22,21 @@ public class AuthRepository(IArangoDBClient db) : BaseRepository<AuthUserModel>,
     {
         var userModel = AuthUserModel.FromEntity(authUser);
         
-        var response = await db.Document.PostDocumentAsync<AuthUserModel>(
-            CollectionName, 
-            userModel,
-            new PostDocumentsQuery { ReturnNew =  true }
-        );
+        try
+        {
+            var response = await db.Document.PostDocumentAsync<AuthUserModel>(
+                CollectionName,
+                userModel,
+                new PostDocumentsQuery { ReturnNew = true }
+            );
 
-        return response.New.ToEntity();
+            return response.New.ToEntity();
+        }
+        catch (ApiErrorException ex) when (ArangoDbErrorTranslator.IsUniqueConstraintViolation(ex))
+        {
+            // Unicidade garantida pelos índices únicos de UserName e Email.
+            throw new UserNameOrEmailAlreadyRegisteredException();
+        }
     }
 
     public async Task<AuthUserEntity?> FindByUserName(string userName)
@@ -51,27 +61,6 @@ public class AuthRepository(IArangoDBClient db) : BaseRepository<AuthUserModel>,
         return userModel?.ToEntity();
     }
 
-    public async Task<bool> UserExistsByUserNameOrEmail(string userName, string email)
-    {
-        var query =
-            $@"
-                FOR u IN {CollectionName}
-                    FILTER u.UserName == @username || u.Email == @email
-                    LIMIT 1
-                    RETURN 1
-            ";
-
-        var bindVars = new Dictionary<string, object>()
-        {
-            { "username", userName },
-            { "email", email },
-        };
-        
-        var cursor = await db.Cursor.PostCursorAsync<int>(query, bindVars);
-
-        return cursor.Result.Any();
-    }
-    
     // IUserPassword methods
     public async Task<string> GetUserIdAsync(AuthUserEntity authUser, CancellationToken ct) 
         => await Task.FromResult(authUser.Id);
