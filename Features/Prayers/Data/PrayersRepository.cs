@@ -31,14 +31,15 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
 
             FILTER user != null
 
-            LET categories = LENGTH(@categoryIds) == 0 ? [] : (
-                FOR currentCategory IN {ArangoDbCollections.Categories}
-                    FILTER currentCategory._key IN @categoryIds || currentCategory._id IN @categoryIds
+            LET categories = LENGTH(@categoryKeys) == 0 ? [] : (
+                FOR categoryKey IN UNIQUE(@categoryKeys)
+                    LET currentCategory = DOCUMENT({ArangoDbCollections.Categories}, categoryKey)
+                    FILTER currentCategory != null
                     FILTER currentCategory.IsPublic == true || currentCategory.OwnerUsername == @userName
                     RETURN currentCategory
             )
 
-            FILTER LENGTH(@categoryIds) == 0 || LENGTH(categories) == LENGTH(@categoryIds)
+            FILTER LENGTH(@categoryKeys) == 0 || LENGTH(categories) == LENGTH(@categoryKeys)
 
             INSERT @prayer INTO {CollectionName}
             LET newPrayer = NEW
@@ -81,7 +82,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         {
             { "prayer", prayerModel },
             { "userName", request.AuthorUsername },
-            { "categoryIds", request.CategoryIds ?? [] }
+            { "categoryKeys", ToCategoryKeys(request.CategoryIds) }
         };
 
         var response = await db.Cursor.PostCursorAsync<InsertPrayerResponseDto>(query, bindVars, token: ct);
@@ -141,6 +142,13 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
 
     public async Task<ListPrayerRepositoryResponseDto?> FindPrayerByIdAsync(string prayerId, string? viewerUserName, CancellationToken ct)
     {
+        var prayerKey = ArangoDbUtils.ExtractKey(prayerId, CollectionName);
+
+        if (prayerKey is null)
+        {
+            return null;
+        }
+
         var query = $@"
             LET viewer = @viewerUserName == null || @viewerUserName == '' ? null : FIRST(
                 FOR u IN {ArangoDbCollections.Users}
@@ -149,12 +157,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                     RETURN u
             )
 
-            LET prayer = FIRST(
-                FOR currentPrayer IN {CollectionName}
-                    FILTER currentPrayer._key == @prayerId || currentPrayer._id == @prayerId
-                    LIMIT 1
-                    RETURN currentPrayer
-            )
+            LET prayer = DOCUMENT({CollectionName}, @prayerKey)
 
             FILTER prayer != null
 
@@ -186,7 +189,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
 
         var bindVars = new Dictionary<string, object>
         {
-            { "prayerId", prayerId },
+            { "prayerKey", prayerKey },
             { "viewerUserName", viewerUserName ?? string.Empty }
         };
 
@@ -238,14 +241,15 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
 
             FILTER ownerLink != null
 
-            LET categories = LENGTH(@categoryIds) == 0 ? [] : (
-                FOR currentCategory IN {ArangoDbCollections.Categories}
-                    FILTER currentCategory._key IN @categoryIds || currentCategory._id IN @categoryIds
+            LET categories = LENGTH(@categoryKeys) == 0 ? [] : (
+                FOR categoryKey IN UNIQUE(@categoryKeys)
+                    LET currentCategory = DOCUMENT({ArangoDbCollections.Categories}, categoryKey)
+                    FILTER currentCategory != null
                     FILTER currentCategory.OwnerUsername == @userName
                     RETURN currentCategory
             )
 
-            FILTER LENGTH(@categoryIds) == 0 || LENGTH(categories) == LENGTH(@categoryIds)
+            FILTER LENGTH(@categoryKeys) == 0 || LENGTH(categories) == LENGTH(@categoryKeys)
 
             // Only ONE modification operation on CategorizedAs in this query
             LET newLinks = (
@@ -280,7 +284,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         {
             { "userName", ownerUserName },
             { "prayerId", formattedPrayerId },
-            { "categoryIds", categoryIds },
+            { "categoryKeys", ToCategoryKeys(categoryIds) },
             {
                 "prayer",
                 new Dictionary<string, object>
@@ -370,6 +374,13 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         string? message,
         CancellationToken ct)
     {
+        var prayerKey = ArangoDbUtils.ExtractKey(prayerId, CollectionName);
+
+        if (prayerKey is null)
+        {
+            return null;
+        }
+
         var query = $@"
             LET user = FIRST(
                 FOR u IN {ArangoDbCollections.Users}
@@ -380,20 +391,18 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
 
             FILTER user != null
 
-            LET prayerToUpdate = FIRST(
-                FOR currentPrayer IN {CollectionName}
-                    FILTER currentPrayer._key == @prayerId || currentPrayer._id == @prayerId
-                    LET ownerLink = FIRST(
-                        FOR edge IN {ArangoDbEdges.PostedBy}
-                            FILTER edge._from == user._id && edge._to == currentPrayer._id
-                            LIMIT 1
-                            RETURN edge
-                    )
-                    FILTER ownerLink != null
-                    RETURN currentPrayer
-            )
+            LET prayerToUpdate = DOCUMENT({CollectionName}, @prayerKey)
 
             FILTER prayerToUpdate != null
+
+            LET ownerLink = FIRST(
+                FOR edge IN {ArangoDbEdges.PostedBy}
+                    FILTER edge._from == user._id && edge._to == prayerToUpdate._id
+                    LIMIT 1
+                    RETURN edge
+            )
+
+            FILTER ownerLink != null
 
             UPDATE prayerToUpdate WITH {{
                 AuthorResponseMessage: @message,
@@ -421,7 +430,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         var bindVars = new Dictionary<string, object>
         {
             { "userName", ownerUserName },
-            { "prayerId", prayerId },
+            { "prayerKey", prayerKey },
             { "message", message ?? string.Empty }
         };
 
@@ -489,6 +498,13 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         string reactorUserName,
         CancellationToken ct)
     {
+        var prayerKey = ArangoDbUtils.ExtractKey(prayerId, CollectionName);
+
+        if (prayerKey is null)
+        {
+            return;
+        }
+
         var query = $@"
             LET user = FIRST(
                 FOR u IN {ArangoDbCollections.Users} 
@@ -497,12 +513,7 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                     RETURN u
             )
             
-            LET prayer = FIRST(
-                FOR currentPrayer IN {CollectionName} 
-                    FILTER currentPrayer._key == @prayerId || currentPrayer._id == @prayerId 
-                    LIMIT 1 
-                    RETURN currentPrayer
-            )
+            LET prayer = DOCUMENT({CollectionName}, @prayerKey)
 
             FILTER user != null && prayer != null
 
@@ -519,12 +530,13 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         var bindVars = new Dictionary<string, object>
         {
             { "userName", reactorUserName },
-            { "prayerId", ArangoDbUtils.BuildArangoDbId(prayerId, CollectionName)! }
+            { "prayerKey", prayerKey }
         };
 
         await db.Cursor.PostCursorAsync(query, bindVars, token: ct);
     }
         
+
     public async Task<(IReadOnlyCollection<TimelinePrayerRepositoryResponseDto>, int TotalCount)> GetTimelineAsync(
         string viewerUserName,
         int page,
@@ -532,7 +544,6 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         CancellationToken ct)
     {
         var query = $@"
-            // 1. Pega o usuário logado
             LET viewer = FIRST(
                 FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @viewerUserName
@@ -540,78 +551,70 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                     RETURN u
             )
             FILTER viewer != null
-    
-            // 2. Busca Orações dos Amigos (OTIMIZADO)
-            LET connectionPrayers = (
+
+            LET connectionCandidates = (
                 FOR friend IN 1..1 ANY viewer._id {ArangoDbEdges.Friendships}
-                    // MÁGICA AQUI: Vai direto do amigo para as orações dele (O(1) para cada amigo)
                     FOR prayer IN 1..1 OUTBOUND friend._id {ArangoDbEdges.PostedBy}
                         FILTER prayer.IsPublic == true
-                        
-                        LET categories = (
-                            FOR category IN 1..1 OUTBOUND prayer._id {ArangoDbEdges.CategorizedAs}
-                                FILTER category.IsPublic == true || category.OwnerUsername == @viewerUserName
-                                RETURN {{
-                                    Id: category._key,
-                                    Name: category.Name,
-                                    ColorHex: category.ColorHex
-                                }}
-                        )
-    
                         RETURN {{
-                            AuthorProfileModel: friend,
-                            PrayerModel: prayer,
-                            Categories: categories,
-                            Interactions: [],
-                            ActivityAt: prayer.CreatedAt
+                            Author: friend,
+                            Prayer: prayer,
+                            ActivityAt: prayer.CreatedAt,
+                            IsOwn: false
                         }}
             )
-    
-            // 3. Busca Interações nas PRÓPRIAS orações (OTIMIZADO)
-            LET ownInteractions = (
-                // MÁGICA AQUI: Pega direto as orações do usuário logado
+
+            LET ownCandidates = (
                 FOR myPrayer IN 1..1 OUTBOUND viewer._id {ArangoDbEdges.PostedBy}
-
-                    LET reactions = (
-                        FOR reaction IN 1..1 INBOUND myPrayer._id {ArangoDbEdges.ReactedBy}
-                            LET reactor = DOCUMENT(reaction._from)
-
-                            RETURN {{
-                                Reactor: reactor,
-                                CreatedAt: reaction.CreatedAt
-                            }}
-                    )
-    
-                    FILTER LENGTH(reactions) > 0
-    
-                    LET categories = (
-                        FOR category IN 1..1 OUTBOUND myPrayer._id {ArangoDbEdges.CategorizedAs}
-                            RETURN {{
-                                Id: category._key,
-                                Name: category.Name,
-                                ColorHex: category.ColorHex
-                            }}
-                    )
-    
+                    FILTER LENGTH(
+                        FOR reactor IN 1..1 INBOUND myPrayer._id {ArangoDbEdges.ReactedBy}
+                            LIMIT 1
+                            RETURN 1
+                    ) > 0
                     RETURN {{
-                        AuthorProfileModel: viewer,
-                        PrayerModel: myPrayer,
-                        Categories: categories,
-                        Interactions: reactions,
+                        Author: viewer,
+                        Prayer: myPrayer,
+                        IsOwn: true
                     }}
             )
-    
-            // 4. Junta tudo, ordena e pagina
-            LET timeline = UNION(connectionPrayers, ownInteractions)
-    
-            FOR item IN timeline
+
+            FOR item IN UNION(connectionCandidates, ownCandidates)
                 SORT item.ActivityAt DESC
                 LIMIT @offset, @pageSize
-                RETURN item
+
+                LET categories = (
+                    FOR category IN 1..1 OUTBOUND item.Prayer._id {ArangoDbEdges.CategorizedAs}
+                        FILTER item.IsOwn OR category.IsPublic == true OR category.OwnerUsername == @viewerUserName
+                        RETURN {{
+                            Id: category._key,
+                            Name: category.Name,
+                            ColorHex: category.ColorHex
+                        }}
+                )
+
+                LET reactions = item.IsOwn ? (
+                    FOR reaction IN 1..1 INBOUND item.Prayer._id {ArangoDbEdges.ReactedBy}
+                        LET reactor = DOCUMENT(reaction._from)
+
+                        RETURN {{
+                            Reactor: reactor,
+                            CreatedAt: reaction.CreatedAt
+                        }}
+                ) : []
+
+                RETURN MERGE(
+                    {{
+                        AuthorProfileModel: item.Author,
+                        PrayerModel: item.Prayer,
+                        Categories: categories,
+                        Interactions: reactions
+                    }},
+                    item.IsOwn ? {{}} : {{ ActivityAt: item.ActivityAt }}
+                )
         ";
-    
+
         var offset = Math.Max(0, (page - 1) * pageSize);
-    
+
         var bindVars = new Dictionary<string, object>
         {
             { "viewerUserName", viewerUserName },
@@ -628,11 +631,11 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                 FullCount = true,
             }
         };
-    
+
         var response = await db.Cursor.PostCursorAsync<TimelinePrayerRepositoryResponseDto>(postCursorBody, token: ct);
-        
+
         var totalCount = (int)(response.Extra?.Stats?.FullCount ?? 0);
-    
+
         return (response.Result.ToList(), totalCount);
     }
 
@@ -645,26 +648,54 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
         int pageSize,
         CancellationToken ct)
     {
-        var query = $@"
+        var hasAuthor = !string.IsNullOrEmpty(authorUserName);
+        var hasCategory = !string.IsNullOrEmpty(categoryId);
+        var hasText = !string.IsNullOrEmpty(text);
+
+        var categoryKey = hasCategory
+            ? ArangoDbUtils.ExtractKey(categoryId, ArangoDbCollections.Categories)
+            : null;
+
+        if (hasCategory && categoryKey is null)
+        {
+            return [];
+        }
+
+        var offset = Math.Max(0, (page - 1) * pageSize);
+
+        var bindVars = new Dictionary<string, object>
+        {
+            { "viewerUserName", viewerUserName ?? string.Empty },
+            { "offset", offset },
+            { "pageSize", pageSize }
+        };
+
+        var viewerLet = $@"
             LET viewer = @viewerUserName == null || @viewerUserName == '' ? null : FIRST(
                 FOR u IN {ArangoDbCollections.Users}
                     FILTER u.UserName == @viewerUserName
                     LIMIT 1
                     RETURN u
-            )
+            )";
 
-            FOR prayer IN {CollectionName}
-                LET author = FIRST(
-                    FOR user IN 1..1 INBOUND prayer._id {ArangoDbEdges.PostedBy}
-                        LIMIT 1
-                        RETURN user
-                )
+        var textFilter = string.Empty;
+        if (hasText)
+        {
+            textFilter = "FILTER CONTAINS(LOWER(prayer.Content), LOWER(@text))";
+            bindVars["text"] = text!;
+        }
 
-                FILTER author != null
-                FILTER prayer.IsPublic == true || (viewer != null && author._id == viewer._id)
-                FILTER @authorUserName == null || @authorUserName == '' || author.UserName == @authorUserName
-                FILTER @text == null || @text == '' || CONTAINS(LOWER(prayer.Content), LOWER(@text))
+        var categoryHeader = string.Empty;
+        if (hasCategory)
+        {
+            categoryHeader = $@"
+            LET categoryDoc = DOCUMENT({ArangoDbCollections.Categories}, @categoryKey)
+            FILTER categoryDoc != null
+            FILTER categoryDoc.IsPublic == true || (viewer != null && categoryDoc.OwnerUsername == @viewerUserName)";
+            bindVars["categoryKey"] = categoryKey!;
+        }
 
+        var categoriesProjection = $@"
                 LET categories = (
                     FOR category IN 1..1 OUTBOUND prayer._id {ArangoDbEdges.CategorizedAs}
                         FILTER category.IsPublic == true || (viewer != null && category.OwnerUsername == @viewerUserName)
@@ -673,39 +704,133 @@ public class PrayersRepository(IArangoDBClient db) : BaseRepository<PrayerModel>
                             Name: category.Name,
                             ColorHex: category.ColorHex
                         }}
+                )";
+
+        string query;
+
+        if (hasAuthor)
+        {
+            bindVars["authorUserName"] = authorUserName!;
+
+            var categoryEdgeFilter = hasCategory
+                ? $@"FILTER LENGTH(
+                        FOR categoryEdge IN {ArangoDbEdges.CategorizedAs}
+                            FILTER categoryEdge._from == prayer._id AND categoryEdge._to == categoryDoc._id
+                            LIMIT 1
+                            RETURN 1
+                    ) > 0"
+                : string.Empty;
+
+            query = $@"
+            {viewerLet}
+            {categoryHeader}
+
+            FOR author IN {ArangoDbCollections.Users}
+                FILTER author.UserName == @authorUserName
+                LIMIT 1
+
+                FOR prayer IN 1..1 OUTBOUND author._id {ArangoDbEdges.PostedBy}
+                    FILTER prayer.IsPublic == true || (viewer != null && author._id == viewer._id)
+                    {textFilter}
+                    {categoryEdgeFilter}
+
+                    SORT prayer.CreatedAt DESC
+                    LIMIT @offset, @pageSize
+
+                    {categoriesProjection}
+
+                    RETURN {{
+                        AuthorProfileModel: author,
+                        PrayerModel: prayer,
+                        Categories: categories
+                    }}
+            ";
+        }
+        else if (hasCategory)
+        {
+            query = $@"
+            {viewerLet}
+            {categoryHeader}
+
+            FOR prayer IN 1..1 INBOUND categoryDoc._id {ArangoDbEdges.CategorizedAs}
+                {textFilter}
+                FILTER prayer.IsPublic == true || viewer != null
+
+                LET author = FIRST(
+                    FOR user IN 1..1 INBOUND prayer._id {ArangoDbEdges.PostedBy}
+                        LIMIT 1
+                        RETURN user
                 )
 
-                FILTER @categoryId == null || @categoryId == '' || LENGTH(
-                    FOR category IN 1..1 OUTBOUND prayer._id {ArangoDbEdges.CategorizedAs}
-                        FILTER category._key == @categoryId || category._id == @categoryId
-                        FILTER category.IsPublic == true || (viewer != null && category.OwnerUsername == @viewerUserName)
-                        RETURN 1
-                ) > 0
+                FILTER author != null
+                FILTER prayer.IsPublic == true || (viewer != null && author._id == viewer._id)
 
                 SORT prayer.CreatedAt DESC
                 LIMIT @offset, @pageSize
+
+                {categoriesProjection}
 
                 RETURN {{
                     AuthorProfileModel: author,
                     PrayerModel: prayer,
                     Categories: categories
                 }}
-        ";
-
-        var offset = Math.Max(0, (page - 1) * pageSize);
-
-        var bindVars = new Dictionary<string, object>
+            ";
+        }
+        else
         {
-            { "viewerUserName", viewerUserName ?? string.Empty },
-            { "authorUserName", authorUserName ?? string.Empty },
-            { "categoryId", categoryId ?? string.Empty },
-            { "text", text ?? string.Empty },
-            { "offset", offset },
-            { "pageSize", pageSize }
-        };
+            bindVars["fetchLimit"] = offset + pageSize;
+
+            query = $@"
+            {viewerLet}
+
+            LET publicPrayers = (
+                FOR prayer IN {CollectionName}
+                    FILTER prayer.IsPublic == true
+                    {textFilter}
+                    SORT prayer.CreatedAt DESC
+                    LIMIT @fetchLimit
+                    RETURN prayer
+            )
+
+            LET ownPrivatePrayers = viewer == null ? [] : (
+                FOR prayer IN 1..1 OUTBOUND viewer._id {ArangoDbEdges.PostedBy}
+                    FILTER prayer.IsPublic != true
+                    {textFilter}
+                    SORT prayer.CreatedAt DESC
+                    LIMIT @fetchLimit
+                    RETURN prayer
+            )
+
+            FOR prayer IN APPEND(publicPrayers, ownPrivatePrayers)
+                SORT prayer.CreatedAt DESC
+                LIMIT @offset, @pageSize
+
+                LET author = FIRST(
+                    FOR user IN 1..1 INBOUND prayer._id {ArangoDbEdges.PostedBy}
+                        LIMIT 1
+                        RETURN user
+                )
+
+                FILTER author != null
+
+                {categoriesProjection}
+
+                RETURN {{
+                    AuthorProfileModel: author,
+                    PrayerModel: prayer,
+                    Categories: categories
+                }}
+            ";
+        }
 
         var response = await db.Cursor.PostCursorAsync<ListPrayerRepositoryResponseDto>(query, bindVars, token: ct);
 
         return response.Result.ToList();
     }
+
+    private static List<string> ToCategoryKeys(IEnumerable<string>? categoryIds)
+        => (categoryIds ?? [])
+            .Select(id => ArangoDbUtils.ExtractKey(id, ArangoDbCollections.Categories) ?? string.Empty)
+            .ToList();
 }

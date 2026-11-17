@@ -52,16 +52,22 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
 
     public async Task<CategoryEntity?> FindCategoryByIdAsync(string categoryId, CancellationToken ct)
     {
+        var categoryKey = ArangoDbUtils.ExtractKey(categoryId, CollectionName);
+
+        if (categoryKey is null)
+        {
+            return null;
+        }
+
         var query = $@"
-            FOR category IN {CollectionName}
-                FILTER category._key == @categoryId || category._id == @categoryId
-                LIMIT 1
-                RETURN category
+            LET category = DOCUMENT({CollectionName}, @categoryKey)
+            FILTER category != null
+            RETURN category
         ";
 
         var bindVars = new Dictionary<string, object>
         {
-            { "categoryId", categoryId }
+            { "categoryKey", categoryKey }
         };
 
         var response = await db.Cursor.PostCursorAsync<CategoryModel>(query, bindVars, token: ct);
@@ -100,6 +106,13 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
 
     public async Task<CategoryEntity?> UpdateCategoryAsync(string categoryId, CategoryEntity category, CancellationToken ct)
     {
+        var categoryKey = ArangoDbUtils.ExtractKey(categoryId, CollectionName);
+
+        if (categoryKey is null)
+        {
+            return null;
+        }
+
         var query = $@"
             LET user = FIRST(
                 FOR u IN {ArangoDbCollections.Users}
@@ -110,20 +123,18 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
 
             FILTER user != null
 
-            LET categoryToUpdate = FIRST(
-                FOR currentCategory IN {CollectionName}
-                    FILTER currentCategory._key == @categoryId || currentCategory._id == @categoryId
-                    LET ownerLink = FIRST(
-                        FOR edge IN {ArangoDbEdges.CreatedCategory}
-                            FILTER edge._from == user._id && edge._to == currentCategory._id
-                            LIMIT 1
-                            RETURN edge
-                    )
-                    FILTER ownerLink != null
-                    RETURN currentCategory
-            )
+            LET categoryToUpdate = DOCUMENT({CollectionName}, @categoryKey)
 
             FILTER categoryToUpdate != null
+
+            LET ownerLink = FIRST(
+                FOR edge IN {ArangoDbEdges.CreatedCategory}
+                    FILTER edge._from == user._id && edge._to == categoryToUpdate._id
+                    LIMIT 1
+                    RETURN edge
+            )
+
+            FILTER ownerLink != null
 
             UPDATE categoryToUpdate WITH @category IN {CollectionName}
             RETURN NEW
@@ -131,7 +142,7 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
 
         var bindVars = new Dictionary<string, object>
         {
-            { "categoryId", categoryId },
+            { "categoryKey", categoryKey },
             { "ownerUsername", category.OwnerUsername },
             {
                 "category",
@@ -153,6 +164,13 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
 
     public async Task<bool> DeleteCategoryAsync(string categoryId, string ownerUsername, CancellationToken ct)
     {
+        var categoryKey = ArangoDbUtils.ExtractKey(categoryId, CollectionName);
+
+        if (categoryKey is null)
+        {
+            return false;
+        }
+
         var query = $@"
             LET user = FIRST(
                 FOR u IN {ArangoDbCollections.Users}
@@ -163,20 +181,18 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
 
             FILTER user != null
 
-            LET categoryToDelete = FIRST(
-                FOR currentCategory IN {CollectionName}
-                    FILTER currentCategory._key == @categoryId || currentCategory._id == @categoryId
-                    LET ownerLink = FIRST(
-                        FOR edge IN {ArangoDbEdges.CreatedCategory}
-                            FILTER edge._from == user._id && edge._to == currentCategory._id
-                            LIMIT 1
-                            RETURN edge
-                    )
-                    FILTER ownerLink != null
-                    RETURN currentCategory
-            )
+            LET categoryToDelete = DOCUMENT({CollectionName}, @categoryKey)
 
             FILTER categoryToDelete != null
+
+            LET ownerLink = FIRST(
+                FOR edge IN {ArangoDbEdges.CreatedCategory}
+                    FILTER edge._from == user._id && edge._to == categoryToDelete._id
+                    LIMIT 1
+                    RETURN edge
+            )
+
+            FILTER ownerLink != null
 
             LET removedOwnershipLinks = (
                 FOR edge IN {ArangoDbEdges.CreatedCategory}
@@ -201,7 +217,7 @@ public class CategoriesRepository(IArangoDBClient db) : BaseRepository<CategoryM
 
         var bindVars = new Dictionary<string, object>
         {
-            { "categoryId", categoryId },
+            { "categoryKey", categoryKey },
             { "ownerUsername", ownerUsername }
         };
 
