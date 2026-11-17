@@ -28,20 +28,54 @@ public class FriendshipsRepository(IArangoDBClient db) : BaseRepository<Friendsh
     {
         var offset = (page - 1) * pageSize;
 
+        var bindVars = new Dictionary<string, object?>
+        {
+            { "offset", offset },
+            { "pageSize", pageSize }
+        };
+
+        var filters = new List<string>();
+
+        var userAId = ArangoDbUtils.BuildArangoDbId(containsUserIds?.UserA, ArangoDbCollections.Users);
+        var userBId = ArangoDbUtils.BuildArangoDbId(containsUserIds?.UserB, ArangoDbCollections.Users);
+
+        if (userAId != null && userBId != null)
+        {
+            filters.Add(
+                "FILTER (edge._from == @userAId AND edge._to == @userBId) OR (edge._from == @userBId AND edge._to == @userAId)");
+            bindVars["userAId"] = userAId;
+            bindVars["userBId"] = userBId;
+        }
+        else if (userAId != null || userBId != null)
+        {
+            filters.Add("FILTER edge._from == @userId OR edge._to == @userId");
+            bindVars["userId"] = userAId ?? userBId;
+        }
+
+        var fromId = ArangoDbUtils.BuildArangoDbId(fromUserId, ArangoDbCollections.Users);
+        if (fromId != null)
+        {
+            filters.Add("FILTER edge._from == @fromUserId");
+            bindVars["fromUserId"] = fromId;
+        }
+
+        var toId = ArangoDbUtils.BuildArangoDbId(toUserId, ArangoDbCollections.Users);
+        if (toId != null)
+        {
+            filters.Add("FILTER edge._to == @toUserId");
+            bindVars["toUserId"] = toId;
+        }
+
+        if (status != null)
+        {
+            filters.Add(status == FriendshipStatusEnum.Pending
+                ? "FILTER edge.AcceptedAt == null"
+                : "FILTER edge.AcceptedAt != null");
+        }
+
         var query = $@"
         FOR edge IN {CollectionName}
-
-            FILTER (@containsUserAId == null || (edge._from == @containsUserAId || edge._to == @containsUserAId))
-            FILTER (@containsUserBId == null || (edge._from == @containsUserBId || edge._to == @containsUserBId))
-
-            FILTER (@fromUserId == null || edge._from == @fromUserId)
-
-            FILTER (@toUserId == null || edge._to == @toUserId)
-            
-            FILTER (@isPending == null || 
-                (@isPending == true && edge.AcceptedAt == null) || 
-                (@isPending == false && edge.AcceptedAt != null)
-            )
+            {string.Join("\n            ", filters)}
 
             SORT edge.RequestedAt DESC
             LIMIT @offset, @pageSize
@@ -64,22 +98,10 @@ public class FriendshipsRepository(IArangoDBClient db) : BaseRepository<Friendsh
             }}
     ";
 
-        bool? isPendingValue = status == null ? null : status == FriendshipStatusEnum.Pending;
-
-
         var postBody = new PostCursorBody
         {
             Query = query,
-            BindVars = new Dictionary<string, object?>
-            {
-                { "fromUserId", ArangoDbUtils.BuildArangoDbId(fromUserId, ArangoDbCollections.Users) },
-                { "toUserId", ArangoDbUtils.BuildArangoDbId(toUserId, ArangoDbCollections.Users) },
-                { "containsUserAId", ArangoDbUtils.BuildArangoDbId(containsUserIds?.UserA, ArangoDbCollections.Users) },
-                { "containsUserBId", ArangoDbUtils.BuildArangoDbId(containsUserIds?.UserB, ArangoDbCollections.Users) },
-                { "isPending", isPendingValue },
-                { "offset", offset },
-                { "pageSize", pageSize }
-            },
+            BindVars = bindVars,
             Options = new PostCursorOptions
             {
                 FullCount = true
@@ -187,10 +209,15 @@ public class FriendshipsRepository(IArangoDBClient db) : BaseRepository<Friendsh
                     RETURN friend._id
             )
 
-            FOR mutualFriendCandidate, friendship IN 1..1 ANY @userBId {CollectionName}
-                FILTER mutualFriendCandidate._id != @userBId
-                FILTER friendship.AcceptedAt != null
-                FILTER mutualFriendCandidate._id IN friendsOfA
+            LET friendsOfB = (
+                FOR friend, friendship IN 1..1 ANY @userBId {CollectionName}
+                    FILTER friend._id != @userBId
+                    FILTER friendship.AcceptedAt != null
+                    RETURN friend._id
+            )
+
+            FOR mutualFriendCandidate IN DOCUMENT(INTERSECTION(friendsOfA, friendsOfB))
+                FILTER mutualFriendCandidate != null
 
                 SORT mutualFriendCandidate.FullName ASC
 
@@ -274,33 +301,40 @@ public class FriendshipsRepository(IArangoDBClient db) : BaseRepository<Friendsh
     {
         var friendshipEdgeModel = FriendshipEdgeModel.FromEntity(entity);
 
-        var query = $@"
-            FOR edge IN {CollectionName}
-                FILTER edge._id == @id || edge._key == @id
-                
-                LET fromUser = DOCUMENT({ArangoDbCollections.Users}, edge._from)
-                LET toUser = DOCUMENT({ArangoDbCollections.Users}, edge._to)
-                
-                UPDATE edge WITH @newModel IN {CollectionName}
+        var edgeKey = ArangoDbUtils.ExtractKey(friendshipEdgeModel.Key, CollectionName);
 
-                RETURN {{
-                    _key: NEW._key,
-                    _id: NEW._id,
-                    _rev: NEW._rev,
-                    _from: NEW._from,
-                    _to: NEW._to,
-                    FromUserName: fromUser.UserName,
-                    FromName: fromUser.FullName,
-                    ToUserName: toUser.UserName,
-                    ToName: toUser.FullName,
-                    RequestedAt: NEW.RequestedAt,
-                    AcceptedAt: NEW.AcceptedAt
-                }}
+        if (edgeKey is null)
+        {
+            return null;
+        }
+
+        var query = $@"
+            LET edge = DOCUMENT({CollectionName}, @edgeKey)
+            FILTER edge != null
+
+            LET fromUser = DOCUMENT({ArangoDbCollections.Users}, edge._from)
+            LET toUser = DOCUMENT({ArangoDbCollections.Users}, edge._to)
+
+            UPDATE edge WITH @newModel IN {CollectionName}
+
+            RETURN {{
+                _key: NEW._key,
+                _id: NEW._id,
+                _rev: NEW._rev,
+                _from: NEW._from,
+                _to: NEW._to,
+                FromUserName: fromUser.UserName,
+                FromName: fromUser.FullName,
+                ToUserName: toUser.UserName,
+                ToName: toUser.FullName,
+                RequestedAt: NEW.RequestedAt,
+                AcceptedAt: NEW.AcceptedAt
+            }}
         ";
 
         var bindVars = new Dictionary<string, object>
         {
-            { "id", friendshipEdgeModel.Id },
+            { "edgeKey", edgeKey },
             { "newModel", friendshipEdgeModel }
         };
 
@@ -311,31 +345,38 @@ public class FriendshipsRepository(IArangoDBClient db) : BaseRepository<Friendsh
 
     public async Task<FriendshipRequestEntity?> FindFriendshipRequestByIdAsync(string requestId, CancellationToken ct)
     {
+        var edgeKey = ArangoDbUtils.ExtractKey(requestId, CollectionName);
+
+        if (edgeKey is null)
+        {
+            return null;
+        }
+
         var query = $@"
-            FOR edge IN {CollectionName}
-                FILTER edge._id == @requestId || edge._key == @requestId
+            LET edge = DOCUMENT({CollectionName}, @edgeKey)
+            FILTER edge != null
 
-                LET fromUser = DOCUMENT({ArangoDbCollections.Users}, edge._from)
-                LET toUser = DOCUMENT({ArangoDbCollections.Users}, edge._to)
+            LET fromUser = DOCUMENT({ArangoDbCollections.Users}, edge._from)
+            LET toUser = DOCUMENT({ArangoDbCollections.Users}, edge._to)
 
-                RETURN {{
-                    _key: edge._key,
-                    _id: edge._id,
-                    _rev: edge._rev,
-                    _from: edge._from,
-                    _to: edge._to,
-                    FromUserName: fromUser.UserName,
-                    FromName: fromUser.FullName,
-                    ToUserName: toUser.UserName,
-                    ToName: toUser.FullName,
-                    RequestedAt: edge.RequestedAt,
-                    AcceptedAt: edge.AcceptedAt
-                }}
+            RETURN {{
+                _key: edge._key,
+                _id: edge._id,
+                _rev: edge._rev,
+                _from: edge._from,
+                _to: edge._to,
+                FromUserName: fromUser.UserName,
+                FromName: fromUser.FullName,
+                ToUserName: toUser.UserName,
+                ToName: toUser.FullName,
+                RequestedAt: edge.RequestedAt,
+                AcceptedAt: edge.AcceptedAt
+            }}
         ";
 
         var bindVars = new Dictionary<string, object>
         {
-            { "requestId", requestId }
+            { "edgeKey", edgeKey }
         };
 
         var response = await db.Cursor.PostCursorAsync<FriendshipEdgeModel>(query, bindVars, token: ct);
@@ -345,33 +386,40 @@ public class FriendshipsRepository(IArangoDBClient db) : BaseRepository<Friendsh
 
     public async Task<FriendshipRequestEntity?> DeleteFriendshipRequestByIdAsync(string requestId, CancellationToken ct)
     {
+        var edgeKey = ArangoDbUtils.ExtractKey(requestId, CollectionName);
+
+        if (edgeKey is null)
+        {
+            return null;
+        }
+
         var query = $@"
-            FOR edge IN {CollectionName}
-                FILTER edge._id == @requestId || edge._key == @requestId
+            LET edge = DOCUMENT({CollectionName}, @edgeKey)
+            FILTER edge != null
 
-                LET fromUser = DOCUMENT(edge._from)
-                LET toUser = DOCUMENT(edge._to)
-                
-                REMOVE edge IN {CollectionName}
+            LET fromUser = DOCUMENT({ArangoDbCollections.Users}, edge._from)
+            LET toUser = DOCUMENT({ArangoDbCollections.Users}, edge._to)
 
-                RETURN {{
-                    _key: edge._key,
-                    _id: edge._id,
-                    _rev: edge._rev,
-                    _from: edge._from,
-                    _to: edge._to,
-                    FromUserName: fromUser.UserName,
-                    FromName: fromUser.FullName,
-                    ToUserName: toUser.UserName,
-                    ToName: toUser.FullName,
-                    RequestedAt: edge.RequestedAt,
-                    AcceptedAt: edge.AcceptedAt
-                }}
+            REMOVE edge IN {CollectionName}
+
+            RETURN {{
+                _key: edge._key,
+                _id: edge._id,
+                _rev: edge._rev,
+                _from: edge._from,
+                _to: edge._to,
+                FromUserName: fromUser.UserName,
+                FromName: fromUser.FullName,
+                ToUserName: toUser.UserName,
+                ToName: toUser.FullName,
+                RequestedAt: edge.RequestedAt,
+                AcceptedAt: edge.AcceptedAt
+            }}
         ";
 
         var bindVars = new Dictionary<string, object>
         {
-            { "requestId", requestId }
+            { "edgeKey", edgeKey }
         };
 
         var response = await db.Cursor.PostCursorAsync<FriendshipEdgeModel>(query, bindVars, token: ct);

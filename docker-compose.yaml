@@ -47,7 +47,9 @@ services:
       - "${ARANGODB_PORT:-8529}:8529"
     environment:
       - ARANGO_ROOT_PASSWORD=${ARANGODB_PASSWORD}
-      - ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY=${ARANGODB_MEM:-8g}
+      # O ArangoDB não detecta o limite de memória do contêiner: sem isto, ele dimensiona
+      # seus caches pela RAM do hospedeiro. Valor em bytes, igual ao mem_limit acima.
+      - ARANGODB_OVERRIDE_DETECTED_TOTAL_MEMORY=${ARANGODB_TOTAL_MEMORY_BYTES:-8589934592}
       - ARANGODB_OVERRIDE_DETECTED_NUMBER_OF_CORES=${ARANGODB_CPUS:-4}
     env_file:
       - .env
