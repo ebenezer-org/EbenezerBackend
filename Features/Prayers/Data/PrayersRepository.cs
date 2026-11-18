@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using EbenezerBackend.Features.Categories.Data.Models;
+using EbenezerBackend.Features.Comments.Data.Models;
+using EbenezerBackend.Features.Comments.Domain.Enums;
 using EbenezerBackend.Features.Prayers.Data.Models;
 using EbenezerBackend.Features.Prayers.Domain.Repositories;
 using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.Insert;
@@ -23,10 +25,12 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
     private readonly IMongoCollection<PrayerModel> _prayers;
     private readonly IMongoCollection<ProfileModel> _users;
     private readonly IMongoCollection<CategoryModel> _categories;
+    private readonly IMongoCollection<CommentsModel> _comments;
     private readonly INeo4JExecutor _neo4j;
 
     public PrayersRepository(IMongoDatabase database, INeo4JExecutor neo4j)
     {
+        _comments = database.GetCollection<CommentsModel>(DbCollections.Comments);
         _prayers = database.GetCollection<PrayerModel>(CollectionName);
         _users = database.GetCollection<ProfileModel>(DbCollections.Users);
         _categories = database.GetCollection<CategoryModel>(DbCollections.Categories);
@@ -153,7 +157,25 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
             Builders<PrayerModel>.Filter.Eq(p => p.AuthorUsername, ownerUserName));
 
         var result = await _prayers.DeleteOneAsync(filter, ct);
-        return result.DeletedCount > 0;
+
+        if (result.DeletedCount == 0)
+        {
+            return false;
+        }
+
+        // Equivalente à remoção das arestas CommentedOn no ArangoDB: os comentários diretos da oração
+        // deixam de ser acessíveis (exclusão lógica, como no restante dos comentários).
+        var commentsFilter = Builders<CommentsModel>.Filter.And(
+            Builders<CommentsModel>.Filter.Eq(c => c.ParentId, prayerId),
+            Builders<CommentsModel>.Filter.Eq(c => c.ParentType, CommentParentTypeEnum.Prayer),
+            Builders<CommentsModel>.Filter.Eq(c => c.DeletedAt, null));
+
+        await _comments.UpdateManyAsync(
+            commentsFilter,
+            Builders<CommentsModel>.Update.Set(c => c.DeletedAt, DateTime.UtcNow),
+            cancellationToken: ct);
+
+        return true;
     }
 
     public async Task<ListPrayerRepositoryResponseDto?> SetAuthorResponseAsync(

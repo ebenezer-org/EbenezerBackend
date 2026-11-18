@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using EbenezerBackend.Features.Categories.Data.Models;
 using EbenezerBackend.Features.Categories.Domain.Entities;
 using EbenezerBackend.Features.Categories.Domain.Repositories;
+using EbenezerBackend.Features.Prayers.Data.Models;
 using EbenezerBackend.Shared.Data;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -13,6 +14,8 @@ namespace EbenezerBackend.Features.Categories.Data;
 public class CategoriesRepository(IMongoDatabase database) : BaseRepository<CategoryModel>, ICategoriesRepository
 {
     private readonly IMongoCollection<CategoryModel> _collection = database.GetCollection<CategoryModel>(CollectionName);
+
+    private readonly IMongoCollection<PrayerModel> _prayers = database.GetCollection<PrayerModel>(DbCollections.Prayers);
 
     public async Task<CategoryEntity> CreateCategoryAsync(CategoryEntity category, CancellationToken ct)
     {
@@ -47,11 +50,11 @@ public class CategoriesRepository(IMongoDatabase database) : BaseRepository<Cate
             filter &= Builders<CategoryModel>.Filter.Eq(x => x.IsPublic, true);
         }
 
-        var sort = Builders<CategoryModel>.Sort.Ascending(x => x.Name);
+        var models = await _collection.Find(filter).ToListAsync(ct);
 
-        var models = await _collection.Find(filter).Sort(sort).ToListAsync(ct);
-
+        // Ordena sem diferenciar maiúsculas de minúsculas (igual ao SORT LOWER(Name) do ArangoDB).
         return models
+            .OrderBy(model => model.Name.ToLowerInvariant(), StringComparer.Ordinal)
             .Select(model => model.ToEntity())
             .ToList()
             .AsReadOnly();
@@ -96,6 +99,19 @@ public class CategoriesRepository(IMongoDatabase database) : BaseRepository<Cate
         );
 
         var result = await _collection.DeleteOneAsync(filter, ct);
-        return result.DeletedCount > 0;
+
+        if (result.DeletedCount == 0)
+        {
+            return false;
+        }
+
+        // Equivalente à remoção das arestas CategorizedAs no ArangoDB: as orações deixam de
+        // referenciar a categoria excluída.
+        await _prayers.UpdateManyAsync(
+            Builders<PrayerModel>.Filter.AnyEq(p => p.CategoryIds, categoryId),
+            Builders<PrayerModel>.Update.Pull(p => p.CategoryIds, categoryId),
+            cancellationToken: ct);
+
+        return true;
     }
 }

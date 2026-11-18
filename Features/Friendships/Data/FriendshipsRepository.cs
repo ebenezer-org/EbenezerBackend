@@ -125,7 +125,8 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
         var query = $$"""
             MERGE (a:User {id: $fromUserId})
             MERGE (b:User {id: $toUserId})
-            CREATE (a)-[f:{{DbEdges.Friendships}} {id: $friendshipId, requestedAt: $requestedAt}]->(b)
+            MERGE (a)-[f:{{DbEdges.Friendships}}]->(b)
+            ON CREATE SET f.id = $friendshipId, f.requestedAt = $requestedAt
             RETURN f.id AS id, a.id AS fromId, b.id AS toId,
                    f.requestedAt AS requestedAt, f.acceptedAt AS acceptedAt
             """;

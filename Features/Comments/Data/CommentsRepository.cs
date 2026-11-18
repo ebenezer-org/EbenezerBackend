@@ -2,6 +2,7 @@ using EbenezerBackend.Features.Comments.Data.Models;
 using EbenezerBackend.Features.Comments.Domain.Enums;
 using EbenezerBackend.Features.Comments.Domain.Repositories;
 using EbenezerBackend.Features.Comments.Domain.Repositories.Dtos;
+using EbenezerBackend.Features.Prayers.Data.Models;
 using EbenezerBackend.Features.Profile.Data.Models;
 using EbenezerBackend.Shared.Data;
 using MongoDB.Bson;
@@ -17,9 +18,22 @@ public class CommentsRepository(IMongoDatabase database) : BaseRepository<Commen
     private readonly IMongoCollection<ProfileModel> _profiles =
         database.GetCollection<ProfileModel>(DbCollections.Users);
 
+    private readonly IMongoCollection<PrayerModel> _prayers =
+        database.GetCollection<PrayerModel>(DbCollections.Prayers);
+
     public async Task<CommentRepositoryResponseDto> InsertCommentAsync(
         InsertCommentRequestDto request, CancellationToken ct)
     {
+        // Mesma regra do ArangoDB: autor e destino (oração ou comentário não excluído) precisam existir.
+        var author = await _profiles
+            .Find(Builders<ProfileModel>.Filter.Eq(x => x.Id, request.AuthorId))
+            .FirstOrDefaultAsync(ct);
+
+        if (author is null || !await ParentExistsAsync(request.ParentId, request.ParentType, ct))
+        {
+            throw new KeyNotFoundException("Autor ou post de destino não encontrado.");
+        }
+
         var model = new CommentsModel
         {
             Content = request.Content,
@@ -32,8 +46,6 @@ public class CommentsRepository(IMongoDatabase database) : BaseRepository<Commen
         };
 
         await _comments.InsertOneAsync(model, cancellationToken: ct);
-
-        var author = await FindProfileAsync(request.AuthorId, ct);
 
         return new CommentRepositoryResponseDto(
             AuthorProfileModel: author,
@@ -203,6 +215,25 @@ public class CommentsRepository(IMongoDatabase database) : BaseRepository<Commen
         var update = Builders<CommentsModel>.Update.Pull(x => x.ReactedBy, reactorId);
 
         await _comments.UpdateOneAsync(filter, update, cancellationToken: ct);
+    }
+
+    private async Task<bool> ParentExistsAsync(string parentId, CommentParentTypeEnum parentType, CancellationToken ct)
+    {
+        if (!ObjectId.TryParse(parentId, out _))
+            return false;
+
+        if (parentType == CommentParentTypeEnum.Prayer)
+        {
+            return await _prayers
+                .Find(Builders<PrayerModel>.Filter.Eq(x => x.Id, parentId))
+                .AnyAsync(ct);
+        }
+
+        return await _comments
+            .Find(Builders<CommentsModel>.Filter.And(
+                Builders<CommentsModel>.Filter.Eq(x => x.Id, parentId),
+                Builders<CommentsModel>.Filter.Eq(x => x.DeletedAt, null)))
+            .AnyAsync(ct);
     }
 
     private async Task<Dictionary<string, int>> CountDirectChildrenAsync(
