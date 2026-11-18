@@ -129,11 +129,14 @@ public class FriendshipsRepository(IArangoDBClient db) : BaseRepository<Friendsh
         var query = $@"
             // 1. Blacklist: Quem já está conectado diretamente
             LET directConnections = (
-                FOR directUser IN 1..1 ANY @userId {CollectionName}
+                FOR directUser, directFriendship IN 1..1 ANY @userId {CollectionName}
+                    FILTER directFriendship.AcceptedAt != null
                     RETURN directUser._id
             )
 
             FOR candidate, friendship, path IN 2..@depth ANY @userId {CollectionName}
+                // Todas as amizades do caminho precisam estar aceitas (igual à abordagem Neo4j).
+                FILTER LENGTH(path.edges[* FILTER CURRENT.AcceptedAt == null]) == 0
                 FILTER friendship.AcceptedAt != null 
                 FILTER candidate._id != @userId               
                 FILTER candidate._id NOT IN directConnections 

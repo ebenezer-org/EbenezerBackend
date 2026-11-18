@@ -18,6 +18,7 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
             LET parent = DOCUMENT(@parentId)
             FILTER parent != null
+            FILTER parent.DeletedAt == null
 
             INSERT @comment INTO {CollectionName}
             LET newComment = NEW
@@ -73,21 +74,29 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
             FOR comment IN 1..1 INBOUND parent._id {ArangoDbEdges.CommentedOn}
                 FILTER IS_SAME_COLLECTION({CollectionName}, comment)
+                FILTER comment.DeletedAt == null
 
                 LET author = DOCUMENT({ArangoDbCollections.Users}, comment.AuthorId)
 
                 LET directCommentsCount = LENGTH(
                     FOR child IN 1..1 INBOUND comment._id {ArangoDbEdges.CommentedOn}
                         FILTER IS_SAME_COLLECTION({CollectionName}, child)
+                        FILTER child.DeletedAt == null
                         RETURN 1
                 )
 
                 SORT comment.CreatedAt DESC
                 LIMIT @offset, @pageSize
 
+                // Quem reagiu (nomes de usuário), calculado só para os comentários da página.
+                LET reactedBy = (
+                    FOR reactor IN 1..1 INBOUND comment._id {ArangoDbEdges.ReactedBy}
+                        RETURN reactor.UserName
+                )
+
                 RETURN {{
                     AuthorProfileModel: author,
-                    CommentModel: comment,
+                    CommentModel: MERGE(comment, {{ ReactedBy: reactedBy }}),
                     DirectCommentsCount: directCommentsCount
                 }}
         ";
@@ -123,23 +132,25 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
         var query = $@"
             LET comment = DOCUMENT(@commentId)
             FILTER comment != null
+            FILTER comment.DeletedAt == null
 
-            LET author = FIRST(
-                FOR u IN 1..1 INBOUND comment._id {ArangoDbEdges.CommentedOn}
-                    FILTER IS_SAME_COLLECTION({ArangoDbCollections.Users}, u)
-                    LIMIT 1
-                    RETURN u
-            )
+            LET author = DOCUMENT({ArangoDbCollections.Users}, comment.AuthorId)
 
             LET directCommentsCount = LENGTH(
                 FOR child IN 1..1 INBOUND comment._id {ArangoDbEdges.CommentedOn}
                     FILTER IS_SAME_COLLECTION({CollectionName}, child)
+                    FILTER child.DeletedAt == null
                     RETURN 1
+            )
+
+            LET reactedBy = (
+                FOR reactor IN 1..1 INBOUND comment._id {ArangoDbEdges.ReactedBy}
+                    RETURN reactor.UserName
             )
 
             RETURN {{
                 AuthorProfileModel: author,
-                CommentModel: comment,
+                CommentModel: MERGE(comment, {{ ReactedBy: reactedBy }}),
                 DirectCommentsCount: directCommentsCount
             }}
         ";
@@ -165,8 +176,15 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
             FILTER commentToUpdate != null
             FILTER commentToUpdate.AuthorId == @ownerId
+            FILTER commentToUpdate.DeletedAt == null
 
             LET author = DOCUMENT(commentToUpdate.AuthorId)
+
+            // Calculado antes do UPDATE: uma travessia depois de modificar a coleção não é permitida.
+            LET reactedBy = (
+                FOR reactor IN 1..1 INBOUND commentToUpdate._id {ArangoDbEdges.ReactedBy}
+                    RETURN reactor.UserName
+            )
 
             UPDATE commentToUpdate WITH {{
                 Content: @content,
@@ -176,7 +194,7 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
             RETURN {{
                 AuthorProfileModel: author,
-                CommentModel: updatedComment,
+                CommentModel: MERGE(updatedComment, {{ ReactedBy: reactedBy }}),
             }}
         ";
 
@@ -199,22 +217,13 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
             FILTER commentToDelete != null
             FILTER commentToDelete.AuthorId == @ownerId
+            FILTER commentToDelete.DeletedAt == null
 
-            LET removedEdges = (
-                FOR edge IN {ArangoDbEdges.CommentedOn}
-                    FILTER edge._from == commentToDelete._id || edge._to == commentToDelete._id
-                    REMOVE edge IN {ArangoDbEdges.CommentedOn}
-                    RETURN OLD
-            )
-
-            LET removedReactions = (
-                FOR edge IN {ArangoDbEdges.ReactedBy}
-                    FILTER edge._to == commentToDelete._id
-                    REMOVE edge IN {ArangoDbEdges.ReactedBy}
-                    RETURN OLD
-            )
-
-            REMOVE commentToDelete IN {CollectionName}
+            // Exclusão lógica (igual à abordagem MongoDB): o documento e as arestas permanecem,
+            // e todas as leituras ignoram comentários com DeletedAt preenchido.
+            UPDATE commentToDelete WITH {{
+                DeletedAt: DATE_ISO8601(DATE_NOW())
+            }} IN {CollectionName}
             RETURN 1
         ";
 
@@ -231,12 +240,19 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
     public async Task AddReactionAsync(string commentId, string reactorId, CancellationToken ct)
     {
+        // O serviço informa o nome de usuário de quem reage (a mesma convenção da abordagem MongoDB).
         const string query = $@"
-            LET user = DOCUMENT(@reactorId)
+            LET user = FIRST(
+                FOR u IN {ArangoDbCollections.Users}
+                    FILTER u.UserName == @reactorUserName
+                    LIMIT 1
+                    RETURN u
+            )
             FILTER user != null
 
             LET comment = DOCUMENT(@commentId)
             FILTER comment != null
+            FILTER comment.DeletedAt == null
 
             LET existingReaction = FIRST(
                 FOR edge IN {ArangoDbEdges.ReactedBy}
@@ -260,7 +276,7 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
         var bindVars = new Dictionary<string, object>
         {
-            { "reactorId", ArangoDbUtils.BuildArangoDbId(reactorId, ArangoDbCollections.Users)! },
+            { "reactorUserName", reactorId },
             { "commentId", ArangoDbUtils.BuildArangoDbId(commentId, ArangoDbCollections.Comments)! }
         };
 
@@ -270,11 +286,17 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
     public async Task RemoveReactionAsync(string commentId, string reactorId, CancellationToken ct)
     {
         var query = $@"
-            LET user = DOCUMENT(@reactorId)
+            LET user = FIRST(
+                FOR u IN {ArangoDbCollections.Users}
+                    FILTER u.UserName == @reactorUserName
+                    LIMIT 1
+                    RETURN u
+            )
             FILTER user != null
 
             LET comment = DOCUMENT(@commentId)
             FILTER comment != null
+            FILTER comment.DeletedAt == null
 
             FOR edge IN {ArangoDbEdges.ReactedBy}
                 FILTER edge._from == user._id && edge._to == comment._id
@@ -285,7 +307,7 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
         var bindVars = new Dictionary<string, object>
         {
-            { "reactorId", ArangoDbUtils.BuildArangoDbId(reactorId, ArangoDbCollections.Users)! },
+            { "reactorUserName", reactorId },
             { "commentId", ArangoDbUtils.BuildArangoDbId(commentId, ArangoDbCollections.Comments)! }
         };
 

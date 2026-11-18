@@ -38,9 +38,9 @@ public class RetrospectiveRepository(IArangoDBClient db) : BaseRepository<Encour
             // Categorias mais e menos pedidas
             LET generalCategoryCounts = (
                 FOR p IN prayers
-                    FILTER p.Category != null
-                    COLLECT category = p.Category WITH COUNT INTO total
-                    RETURN {{ Name: category, Count: total }}
+                    FOR category IN 1..1 OUTBOUND p._id {ArangoDbEdges.CategorizedAs}
+                        COLLECT categoryKey = category._key, categoryName = category.Name WITH COUNT INTO total
+                        RETURN {{ Name: categoryName, Count: total }}
             )
             LET mostRequested = (FOR category IN generalCategoryCounts SORT category.Count DESC LIMIT 1 RETURN category)[0]
             LET leastRequested = (FOR category IN generalCategoryCounts SORT category.Count ASC LIMIT 1 RETURN category)[0]
@@ -49,9 +49,9 @@ public class RetrospectiveRepository(IArangoDBClient db) : BaseRepository<Encour
             LET answeredCategoryCounts = (
                 FOR p IN prayers
                     FILTER p.DivineAnswerStatus != null
-                    FILTER p.Category != null
-                    COLLECT category = p.Category WITH COUNT INTO total
-                    RETURN {{ Name: category, Count: total }}
+                    FOR category IN 1..1 OUTBOUND p._id {ArangoDbEdges.CategorizedAs}
+                        COLLECT categoryKey = category._key, categoryName = category.Name WITH COUNT INTO total
+                        RETURN {{ Name: categoryName, Count: total }}
             )
             LET mostAnswered = (FOR c IN answeredCategoryCounts SORT c.Count DESC LIMIT 1 RETURN c)[0]
 
@@ -72,6 +72,7 @@ public class RetrospectiveRepository(IArangoDBClient db) : BaseRepository<Encour
                     LET commenters = (
                         FOR v IN 1..1 ANY p._id {ArangoDbEdges.CommentedOn}
                             FILTER v.AuthorId != @userId
+                            FILTER v.DeletedAt == null
                             RETURN v.AuthorId
                     )
                     LET reactors = (
