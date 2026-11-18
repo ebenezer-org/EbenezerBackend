@@ -24,9 +24,12 @@ services:
       - MONGODB_CONNECTION_STRING=mongodb://${MONGODB_ROOT_USER}:${MONGODB_ROOT_PASSWORD}@mongodb:27017
       - NEO4J_URI=bolt://neo4j:7687
 
+  # Ferramenta opcional: não sobe por padrão (evita ruído de recursos nos benchmarks).
+  # Para usar: docker compose --profile tools up -d mongo-express
   mongo-express:
     image: mongo-express:1.0.2
     container_name: ebenezer-mongo-express
+    profiles: ["tools"]
     ports:
       - "${MONGODB_EXPRESS_PORT}:8081"
     environment:
@@ -57,7 +60,8 @@ services:
     volumes:
       - mongodb_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      test:
+        ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
       timeout: 5s
       retries: 5

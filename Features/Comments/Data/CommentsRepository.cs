@@ -2,6 +2,7 @@ using EbenezerBackend.Features.Comments.Data.Models;
 using EbenezerBackend.Features.Comments.Domain.Enums;
 using EbenezerBackend.Features.Comments.Domain.Repositories;
 using EbenezerBackend.Features.Comments.Domain.Repositories.Dtos;
+using EbenezerBackend.Features.Prayers.Data.Models;
 using EbenezerBackend.Features.Profile.Data.Models;
 using EbenezerBackend.Shared.Data;
 using MongoDB.Bson;
@@ -17,9 +18,22 @@ public class CommentsRepository(IMongoDatabase database) : BaseRepository<Commen
     private readonly IMongoCollection<ProfileModel> _profiles =
         database.GetCollection<ProfileModel>(DbCollections.Users);
 
+    private readonly IMongoCollection<PrayerModel> _prayers =
+        database.GetCollection<PrayerModel>(DbCollections.Prayers);
+
     public async Task<CommentRepositoryResponseDto> InsertCommentAsync(
         InsertCommentRequestDto request, CancellationToken ct)
     {
+        // Mesma regra do ArangoDB: autor e destino (oração ou comentário não excluído) precisam existir.
+        var author = await _profiles
+            .Find(Builders<ProfileModel>.Filter.Eq(x => x.Id, request.AuthorId))
+            .FirstOrDefaultAsync(ct);
+
+        if (author is null || !await ParentExistsAsync(request.ParentId, request.ParentType, ct))
+        {
+            throw new KeyNotFoundException("Autor ou post de destino não encontrado.");
+        }
+
         var model = new CommentsModel
         {
             Content = request.Content,
@@ -32,16 +46,6 @@ public class CommentsRepository(IMongoDatabase database) : BaseRepository<Commen
         };
 
         await _comments.InsertOneAsync(model, cancellationToken: ct);
-
-        if (request.ParentType == CommentParentTypeEnum.Comment
-            && ObjectId.TryParse(request.ParentId, out _))
-        {
-            var parentFilter = Builders<CommentsModel>.Filter.Eq(x => x.Id, request.ParentId);
-            var parentUpdate = Builders<CommentsModel>.Update.Inc(x => x.CommentsCount, 1);
-            await _comments.UpdateOneAsync(parentFilter, parentUpdate, cancellationToken: ct);
-        }
-
-        var author = await FindProfileAsync(request.AuthorId, ct);
 
         return new CommentRepositoryResponseDto(
             AuthorProfileModel: author,
@@ -81,13 +85,18 @@ public class CommentsRepository(IMongoDatabase database) : BaseRepository<Commen
         var authorIds = comments.Select(c => c.AuthorId).Distinct().ToList();
         var profilesMap = await LoadProfilesMapAsync(authorIds, ct);
 
+        // Contagem calculada na hora (igual ao ArangoDB): respostas diretas ainda não excluídas,
+        // para os comentários da página, em uma única agregação.
+        var childCounts = await CountDirectChildrenAsync(comments.Select(c => c.Id!).ToList(), ct);
+
         var items = comments.Select(comment =>
         {
             profilesMap.TryGetValue(comment.AuthorId, out var profile);
+            childCounts.TryGetValue(comment.Id!, out var directCount);
             return new CommentRepositoryResponseDto(
                 AuthorProfileModel: profile ?? new ProfileModel { Id = comment.AuthorId },
                 CommentModel: comment,
-                DirectCommentsCount: comment.CommentsCount
+                DirectCommentsCount: directCount
             );
         }).ToList();
 
@@ -111,10 +120,13 @@ public class CommentsRepository(IMongoDatabase database) : BaseRepository<Commen
 
         var author = await FindProfileAsync(comment.AuthorId, ct);
 
+        var childCounts = await CountDirectChildrenAsync([comment.Id!], ct);
+        childCounts.TryGetValue(comment.Id!, out var directCount);
+
         return new CommentRepositoryResponseDto(
             AuthorProfileModel: author,
             CommentModel: comment,
-            DirectCommentsCount: comment.CommentsCount
+            DirectCommentsCount: directCount
         );
     }
 
@@ -148,10 +160,11 @@ public class CommentsRepository(IMongoDatabase database) : BaseRepository<Commen
 
         var author = await FindProfileAsync(updated.AuthorId, ct);
 
+        // Igual ao ArangoDB, a atualização não recalcula a contagem de respostas.
         return new CommentRepositoryResponseDto(
             AuthorProfileModel: author,
             CommentModel: updated,
-            DirectCommentsCount: updated.CommentsCount
+            DirectCommentsCount: 0
         );
     }
 
@@ -202,6 +215,42 @@ public class CommentsRepository(IMongoDatabase database) : BaseRepository<Commen
         var update = Builders<CommentsModel>.Update.Pull(x => x.ReactedBy, reactorId);
 
         await _comments.UpdateOneAsync(filter, update, cancellationToken: ct);
+    }
+
+    private async Task<bool> ParentExistsAsync(string parentId, CommentParentTypeEnum parentType, CancellationToken ct)
+    {
+        if (!ObjectId.TryParse(parentId, out _))
+            return false;
+
+        if (parentType == CommentParentTypeEnum.Prayer)
+        {
+            return await _prayers
+                .Find(Builders<PrayerModel>.Filter.Eq(x => x.Id, parentId))
+                .AnyAsync(ct);
+        }
+
+        return await _comments
+            .Find(Builders<CommentsModel>.Filter.And(
+                Builders<CommentsModel>.Filter.Eq(x => x.Id, parentId),
+                Builders<CommentsModel>.Filter.Eq(x => x.DeletedAt, null)))
+            .AnyAsync(ct);
+    }
+
+    private async Task<Dictionary<string, int>> CountDirectChildrenAsync(
+        IReadOnlyCollection<string> commentIds, CancellationToken ct)
+    {
+        var filter = Builders<CommentsModel>.Filter.And(
+            Builders<CommentsModel>.Filter.In(x => x.ParentId, commentIds),
+            Builders<CommentsModel>.Filter.Eq(x => x.ParentType, CommentParentTypeEnum.Comment),
+            Builders<CommentsModel>.Filter.Eq(x => x.DeletedAt, null));
+
+        var counts = await _comments
+            .Aggregate()
+            .Match(filter)
+            .Group(x => x.ParentId, group => new { ParentId = group.Key, Count = group.Count() })
+            .ToListAsync(ct);
+
+        return counts.ToDictionary(x => x.ParentId, x => x.Count);
     }
 
     private async Task<ProfileModel> FindProfileAsync(string userId, CancellationToken ct)

@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using EbenezerBackend.Features.Categories.Data.Models;
+using EbenezerBackend.Features.Comments.Data.Models;
+using EbenezerBackend.Features.Comments.Domain.Enums;
 using EbenezerBackend.Features.Prayers.Data.Models;
 using EbenezerBackend.Features.Prayers.Domain.Repositories;
 using EbenezerBackend.Features.Prayers.Domain.Repositories.Dtos.Insert;
@@ -23,10 +25,12 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
     private readonly IMongoCollection<PrayerModel> _prayers;
     private readonly IMongoCollection<ProfileModel> _users;
     private readonly IMongoCollection<CategoryModel> _categories;
+    private readonly IMongoCollection<CommentsModel> _comments;
     private readonly INeo4JExecutor _neo4j;
 
     public PrayersRepository(IMongoDatabase database, INeo4JExecutor neo4j)
     {
+        _comments = database.GetCollection<CommentsModel>(DbCollections.Comments);
         _prayers = database.GetCollection<PrayerModel>(CollectionName);
         _users = database.GetCollection<ProfileModel>(DbCollections.Users);
         _categories = database.GetCollection<CategoryModel>(DbCollections.Categories);
@@ -35,36 +39,47 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
 
     public async Task<InsertPrayerResponseDto> InsertPrayerAsync(InsertPrayerRequestDto request, CancellationToken ct)
     {
+        // Mesma regra do ArangoDB: autor e categorias são validados antes de gravar
+        // (categoria pública ou do próprio autor); qualquer falha vira "não encontrado".
+        var author = await FindAuthorAsync(request.AuthorUsername, ct)
+                     ?? throw new NotFoundException("Usuário ou categoria não encontrados");
+
+        var categoryModels = await ResolveUsableCategoriesAsync(
+                                 request.CategoryIds ?? [], request.AuthorUsername, ownedOnly: false, ct)
+                             ?? throw new NotFoundException("Usuário ou categoria não encontrados");
+
         var model = PrayerModel.FromEntity(request.PrayerEntity);
         model.Id = null;
         model.AuthorUsername = request.AuthorUsername;
-        model.CategoryIds = (request.CategoryIds ?? []).Distinct().ToList();
+        model.CategoryIds = categoryModels.Select(c => c.Id!).Distinct().ToList();
         model.Supporters = [];
 
         await _prayers.InsertOneAsync(model, cancellationToken: ct);
 
-        var author = await FindAuthorAsync(request.AuthorUsername, ct)
-                     ?? throw new ProfileNotFoundException(request.AuthorUsername);
-        var categories = await LoadCategoriesAsync(model.CategoryIds, ct);
-
-        return new InsertPrayerResponseDto(author, model, categories);
+        return new InsertPrayerResponseDto(author, model, ToCategoryDtos(categoryModels));
     }
 
     public async Task<IReadOnlyCollection<ListPrayerRepositoryResponseDto>> ListPrayersAsync(
         string? viewerUserName, CancellationToken ct)
     {
+        // Sem usuário autenticado nada é visível: oração pública só é vista pelo autor e seus amigos.
+        if (string.IsNullOrEmpty(viewerUserName))
+        {
+            return [];
+        }
+
         var filter = await BuildVisibilityFilterAsync(viewerUserName, ct);
         var sort = Builders<PrayerModel>.Sort.Descending(p => p.CreatedAt);
 
         var models = await _prayers.Find(filter).Sort(sort).ToListAsync(ct);
 
-        return await ToListResponsesAsync(models, ct);
+        return await ToListResponsesAsync(models, viewerUserName, ct);
     }
 
     public async Task<ListPrayerRepositoryResponseDto?> FindPrayerByIdAsync(
         string prayerId, string? viewerUserName, CancellationToken ct)
     {
-        if (!ObjectId.TryParse(prayerId, out _))
+        if (string.IsNullOrEmpty(viewerUserName) || !ObjectId.TryParse(prayerId, out _))
         {
             return null;
         }
@@ -83,7 +98,7 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
             return null;
         }
 
-        var categories = await LoadCategoriesAsync(model.CategoryIds, ct);
+        var categories = await LoadCategoriesAsync(model.CategoryIds, viewerUserName, ct);
         return new ListPrayerRepositoryResponseDto(author, model, categories);
     }
 
@@ -96,6 +111,13 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
             return null;
         }
 
+        // Mesma regra do ArangoDB: na atualização, só categorias do próprio dono.
+        var categoryModels = await ResolveUsableCategoriesAsync(categoryIds ?? [], ownerUserName, ownedOnly: true, ct);
+        if (categoryModels is null)
+        {
+            return null;
+        }
+
         var filter = Builders<PrayerModel>.Filter.And(
             Builders<PrayerModel>.Filter.Eq(p => p.Id, prayerId),
             Builders<PrayerModel>.Filter.Eq(p => p.AuthorUsername, ownerUserName));
@@ -103,7 +125,7 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
         var update = Builders<PrayerModel>.Update
             .Set(p => p.Content, content)
             .Set(p => p.IsPublic, isPublic)
-            .Set(p => p.CategoryIds, (categoryIds ?? []).Distinct().ToList())
+            .Set(p => p.CategoryIds, categoryModels.Select(c => c.Id!).Distinct().ToList())
             .Set(p => p.UpdatedAt, DateTime.UtcNow);
 
         var options = new FindOneAndUpdateOptions<PrayerModel> { ReturnDocument = ReturnDocument.After };
@@ -120,8 +142,7 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
             return null;
         }
 
-        var categories = await LoadCategoriesAsync(model.CategoryIds, ct);
-        return new ListPrayerRepositoryResponseDto(author, model, categories);
+        return new ListPrayerRepositoryResponseDto(author, model, ToCategoryDtos(categoryModels));
     }
 
     public async Task<bool> DeletePrayerAsync(string prayerId, string ownerUserName, CancellationToken ct)
@@ -136,7 +157,25 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
             Builders<PrayerModel>.Filter.Eq(p => p.AuthorUsername, ownerUserName));
 
         var result = await _prayers.DeleteOneAsync(filter, ct);
-        return result.DeletedCount > 0;
+
+        if (result.DeletedCount == 0)
+        {
+            return false;
+        }
+
+        // Equivalente à remoção das arestas CommentedOn no ArangoDB: os comentários diretos da oração
+        // deixam de ser acessíveis (exclusão lógica, como no restante dos comentários).
+        var commentsFilter = Builders<CommentsModel>.Filter.And(
+            Builders<CommentsModel>.Filter.Eq(c => c.ParentId, prayerId),
+            Builders<CommentsModel>.Filter.Eq(c => c.ParentType, CommentParentTypeEnum.Prayer),
+            Builders<CommentsModel>.Filter.Eq(c => c.DeletedAt, null));
+
+        await _comments.UpdateManyAsync(
+            commentsFilter,
+            Builders<CommentsModel>.Update.Set(c => c.DeletedAt, DateTime.UtcNow),
+            cancellationToken: ct);
+
+        return true;
     }
 
     public async Task<ListPrayerRepositoryResponseDto?> SetAuthorResponseAsync(
@@ -169,7 +208,7 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
             return null;
         }
 
-        var categories = await LoadCategoriesAsync(model.CategoryIds, ct);
+        var categories = await LoadCategoriesAsync(model.CategoryIds, null, ct);
         return new ListPrayerRepositoryResponseDto(author, model, categories);
     }
 
@@ -180,18 +219,19 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
             return;
         }
 
-        var filter = Builders<PrayerModel>.Filter.Eq(p => p.Id, prayerId);
+        // Mesma regra do ArangoDB: só em oração pública, e idempotente (uma reação já existente
+        // não é duplicada nem reordenada). Uma única operação atômica no lugar de Pull + Push.
+        var filter = Builders<PrayerModel>.Filter.And(
+            Builders<PrayerModel>.Filter.Eq(p => p.Id, prayerId),
+            Builders<PrayerModel>.Filter.Eq(p => p.IsPublic, true),
+            Builders<PrayerModel>.Filter.Not(
+                Builders<PrayerModel>.Filter.ElemMatch(p => p.Supporters, s => s.UserName == reactorUserName)));
 
-        // Keep the reaction idempotent: drop any previous reaction from this user before re-adding it.
-        var pull = Builders<PrayerModel>.Update.PullFilter(
-            p => p.Supporters, s => s.UserName == reactorUserName);
-        await _prayers.UpdateOneAsync(filter, pull, cancellationToken: ct);
-
-        var existsFilter = Builders<PrayerModel>.Filter.Eq(p => p.Id, prayerId);
         var push = Builders<PrayerModel>.Update.Push(
             p => p.Supporters,
             new PrayerSupportReactionModel { UserName = reactorUserName, ReactedAt = DateTime.UtcNow });
-        await _prayers.UpdateOneAsync(existsFilter, push, cancellationToken: ct);
+
+        await _prayers.UpdateOneAsync(filter, push, cancellationToken: ct);
     }
 
     public async Task RemoveSupportReactionAsync(string prayerId, string reactorUserName, CancellationToken ct)
@@ -211,15 +251,23 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
     public async Task<(IReadOnlyCollection<TimelinePrayerRepositoryResponseDto>, int TotalCount)> GetTimelineAsync(
         string viewerUserName, int page, int pageSize, CancellationToken ct)
     {
-        // The timeline is the viewer's own prayers plus the prayers authored by their accepted friends.
+        // Regras da timeline (iguais às do ArangoDB):
+        //  - orações PÚBLICAS de amigos (amizade aceita); orações privadas de outros nunca aparecem;
+        //  - orações do próprio usuário, só quando houve atualização (ao menos uma reação de apoio).
         var friends = await GetAcceptedFriendUserNamesAsync(viewerUserName, ct);
-        var feedAuthors = friends.Append(viewerUserName).Distinct().ToList();
 
-        var filter = Builders<PrayerModel>.Filter.In(p => p.AuthorUsername, feedAuthors);
+        var filter = Builders<PrayerModel>.Filter.Or(
+            Builders<PrayerModel>.Filter.And(
+                Builders<PrayerModel>.Filter.In(p => p.AuthorUsername, friends),
+                Builders<PrayerModel>.Filter.Eq(p => p.IsPublic, true)),
+            Builders<PrayerModel>.Filter.And(
+                Builders<PrayerModel>.Filter.Eq(p => p.AuthorUsername, viewerUserName),
+                Builders<PrayerModel>.Filter.SizeGt(p => p.Supporters, 0)));
+
         var models = await _prayers.Find(filter).ToListAsync(ct);
 
         var ordered = models
-            .OrderByDescending(ResolveActivityAt)
+            .OrderByDescending(p => ResolveActivityAt(p, viewerUserName))
             .ToList();
 
         var totalCount = ordered.Count;
@@ -235,10 +283,12 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
         }
 
         var authorUserNames = pageItems.Select(p => p.AuthorUsername);
-        var supporterUserNames = pageItems.SelectMany(p => p.Supporters.Select(s => s.UserName));
+        var supporterUserNames = pageItems
+            .Where(p => IsOwn(p, viewerUserName))
+            .SelectMany(p => p.Supporters.Select(s => s.UserName));
         var profiles = await LoadProfilesAsync(authorUserNames.Concat(supporterUserNames), ct);
 
-        var categories = await LoadCategoryMapAsync(pageItems.SelectMany(p => p.CategoryIds), ct);
+        var categoryMap = await LoadCategoryModelsAsync(pageItems.SelectMany(p => p.CategoryIds), ct);
 
         var items = new List<TimelinePrayerRepositoryResponseDto>();
         foreach (var prayer in pageItems)
@@ -248,21 +298,25 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
                 continue;
             }
 
-            var prayerCategories = ResolveCategories(prayer.CategoryIds, categories);
+            var isOwn = IsOwn(prayer, viewerUserName);
+            var prayerCategories = ResolveCategories(prayer.CategoryIds, categoryMap, isOwn ? null : viewerUserName);
 
-            var interactions = prayer.Supporters
-                .OrderBy(s => s.ReactedAt)
-                .Where(s => profiles.ContainsKey(s.UserName))
-                .Select(s =>
-                {
-                    var reactor = profiles[s.UserName];
-                    return new PrayerInteractionPartialDto(
-                        SupportInteractionType, reactor.Id ?? string.Empty, reactor.UserName, reactor.FullName, s.ReactedAt);
-                })
-                .ToList();
+            // Apenas as orações do próprio usuário trazem as interações recebidas.
+            var interactions = isOwn
+                ? prayer.Supporters
+                    .OrderBy(s => s.ReactedAt)
+                    .Where(s => profiles.ContainsKey(s.UserName))
+                    .Select(s =>
+                    {
+                        var reactor = profiles[s.UserName];
+                        return new PrayerInteractionPartialDto(
+                            SupportInteractionType, reactor.Id ?? string.Empty, reactor.UserName, reactor.FullName, s.ReactedAt);
+                    })
+                    .ToList()
+                : new List<PrayerInteractionPartialDto>();
 
             items.Add(new TimelinePrayerRepositoryResponseDto(
-                author, prayer, prayerCategories, interactions, ResolveActivityAt(prayer)));
+                author, prayer, prayerCategories, interactions, ResolveActivityAt(prayer, viewerUserName)));
         }
 
         return (items, totalCount);
@@ -272,6 +326,19 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
         string? viewerUserName, string? authorUserName, string? categoryId, string? text,
         int page, int pageSize, CancellationToken ct)
     {
+        // Sem usuário autenticado nada é visível.
+        if (string.IsNullOrEmpty(viewerUserName))
+        {
+            return [];
+        }
+
+        if (!string.IsNullOrWhiteSpace(categoryId)
+            && (!ObjectId.TryParse(categoryId, out _) || !await IsCategoryVisibleAsync(categoryId, viewerUserName, ct)))
+        {
+            // Categoria inexistente ou não visível para o viewer (igual ao ArangoDB): nenhum resultado.
+            return [];
+        }
+
         var filters = new List<FilterDefinition<PrayerModel>>
         {
             await BuildVisibilityFilterAsync(viewerUserName, ct)
@@ -303,22 +370,20 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
             .Limit(pageSize)
             .ToListAsync(ct);
 
-        return await ToListResponsesAsync(models, ct);
+        return await ToListResponsesAsync(models, viewerUserName, ct);
     }
 
-    private static DateTime ResolveActivityAt(PrayerModel prayer)
-    {
-        if (prayer.Supporters.Count == 0)
-        {
-            return prayer.UpdatedAt;
-        }
+    private static bool IsOwn(PrayerModel prayer, string viewerUserName)
+        => string.Equals(prayer.AuthorUsername, viewerUserName, StringComparison.Ordinal);
 
-        var lastReaction = prayer.Supporters.Max(s => s.ReactedAt);
-        return lastReaction > prayer.UpdatedAt ? lastReaction : prayer.UpdatedAt;
-    }
+    // Amigo: data de criação. Oração própria com interação: data da última reação.
+    private static DateTime ResolveActivityAt(PrayerModel prayer, string viewerUserName)
+        => IsOwn(prayer, viewerUserName) && prayer.Supporters.Count > 0
+            ? prayer.Supporters.Max(s => s.ReactedAt)
+            : prayer.CreatedAt;
 
     private async Task<List<ListPrayerRepositoryResponseDto>> ToListResponsesAsync(
-        IReadOnlyCollection<PrayerModel> prayers, CancellationToken ct)
+        IReadOnlyCollection<PrayerModel> prayers, string viewerUserName, CancellationToken ct)
     {
         if (prayers.Count == 0)
         {
@@ -326,7 +391,7 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
         }
 
         var authors = await LoadProfilesAsync(prayers.Select(p => p.AuthorUsername), ct);
-        var categories = await LoadCategoryMapAsync(prayers.SelectMany(p => p.CategoryIds), ct);
+        var categoryMap = await LoadCategoryModelsAsync(prayers.SelectMany(p => p.CategoryIds), ct);
 
         var result = new List<ListPrayerRepositoryResponseDto>();
         foreach (var prayer in prayers)
@@ -336,49 +401,34 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
                 continue;
             }
 
-            var prayerCategories = ResolveCategories(prayer.CategoryIds, categories);
+            var prayerCategories = ResolveCategories(prayer.CategoryIds, categoryMap, viewerUserName);
             result.Add(new ListPrayerRepositoryResponseDto(author, prayer, prayerCategories));
         }
 
         return result;
     }
 
-    private async Task<bool> CanViewAsync(PrayerModel prayer, string? viewerUserName, CancellationToken ct)
+    // Privada: só o autor. Pública: o autor e os amigos (amizade aceita) dele.
+    private async Task<bool> CanViewAsync(PrayerModel prayer, string viewerUserName, CancellationToken ct)
     {
-        if (prayer.IsPublic)
+        if (IsOwn(prayer, viewerUserName))
         {
             return true;
         }
 
-        if (viewerUserName is null)
-        {
-            return false;
-        }
-
-        if (string.Equals(viewerUserName, prayer.AuthorUsername, StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        return await AreAcceptedFriendsAsync(prayer.AuthorUsername, viewerUserName, ct);
+        return prayer.IsPublic && await AreAcceptedFriendsAsync(prayer.AuthorUsername, viewerUserName, ct);
     }
 
     private async Task<FilterDefinition<PrayerModel>> BuildVisibilityFilterAsync(
-        string? viewerUserName, CancellationToken ct)
+        string viewerUserName, CancellationToken ct)
     {
-        var publicFilter = Builders<PrayerModel>.Filter.Eq(p => p.IsPublic, true);
-
-        if (viewerUserName is null)
-        {
-            return publicFilter;
-        }
-
         var friends = await GetAcceptedFriendUserNamesAsync(viewerUserName, ct);
-        var visibleAuthors = friends.Append(viewerUserName).Distinct().ToList();
 
         return Builders<PrayerModel>.Filter.Or(
-            publicFilter,
-            Builders<PrayerModel>.Filter.In(p => p.AuthorUsername, visibleAuthors));
+            Builders<PrayerModel>.Filter.Eq(p => p.AuthorUsername, viewerUserName),
+            Builders<PrayerModel>.Filter.And(
+                Builders<PrayerModel>.Filter.Eq(p => p.IsPublic, true),
+                Builders<PrayerModel>.Filter.In(p => p.AuthorUsername, friends)));
     }
 
     private async Task<ProfileModel?> FindAuthorAsync(string username, CancellationToken ct)
@@ -404,14 +454,64 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
             .ToDictionary(g => g.Key, g => g.First());
     }
 
-    private async Task<List<PrayerCategoryPartialDto>> LoadCategoriesAsync(
-        IReadOnlyCollection<string> categoryIds, CancellationToken ct)
+    // Valida as categorias informadas antes de gravar (igual ao ArangoDB): todas precisam existir e
+    // ser públicas ou do próprio usuário (ownedOnly: só do próprio usuário). Devolve null se alguma
+    // falhar; a contagem compara com o total informado, inclusive repetidos.
+    private async Task<List<CategoryModel>?> ResolveUsableCategoriesAsync(
+        IEnumerable<string> rawCategoryIds, string userName, bool ownedOnly, CancellationToken ct)
     {
-        var map = await LoadCategoryMapAsync(categoryIds, ct);
-        return ResolveCategories(categoryIds, map);
+        var requested = rawCategoryIds.ToList();
+        if (requested.Count == 0)
+        {
+            return [];
+        }
+
+        var validIds = requested
+            .Where(id => ObjectId.TryParse(id, out _))
+            .Distinct()
+            .ToList();
+
+        if (validIds.Count == 0)
+        {
+            return null;
+        }
+
+        var ownedByUser = Builders<CategoryModel>.Filter.Eq(c => c.OwnerUsername, userName);
+        var usable = ownedOnly
+            ? ownedByUser
+            : Builders<CategoryModel>.Filter.Or(
+                Builders<CategoryModel>.Filter.Eq(c => c.IsPublic, true),
+                ownedByUser);
+
+        var filter = Builders<CategoryModel>.Filter.And(
+            Builders<CategoryModel>.Filter.In(c => c.Id, validIds),
+            usable);
+
+        var found = await _categories.Find(filter).ToListAsync(ct);
+
+        return found.Count == requested.Count ? found : null;
     }
 
-    private async Task<Dictionary<string, PrayerCategoryPartialDto>> LoadCategoryMapAsync(
+    private async Task<bool> IsCategoryVisibleAsync(string categoryId, string viewerUserName, CancellationToken ct)
+    {
+        var filter = Builders<CategoryModel>.Filter.And(
+            Builders<CategoryModel>.Filter.Eq(c => c.Id, categoryId),
+            Builders<CategoryModel>.Filter.Or(
+                Builders<CategoryModel>.Filter.Eq(c => c.IsPublic, true),
+                Builders<CategoryModel>.Filter.Eq(c => c.OwnerUsername, viewerUserName)));
+
+        return await _categories.Find(filter).AnyAsync(ct);
+    }
+
+    // visibleTo = null: sem restrição (dono vendo as próprias orações).
+    private async Task<List<PrayerCategoryPartialDto>> LoadCategoriesAsync(
+        IReadOnlyCollection<string> categoryIds, string? visibleTo, CancellationToken ct)
+    {
+        var map = await LoadCategoryModelsAsync(categoryIds, ct);
+        return ResolveCategories(categoryIds, map, visibleTo);
+    }
+
+    private async Task<Dictionary<string, CategoryModel>> LoadCategoryModelsAsync(
         IEnumerable<string> categoryIds, CancellationToken ct)
     {
         var validIds = categoryIds
@@ -421,23 +521,31 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
 
         if (validIds.Count == 0)
         {
-            return new Dictionary<string, PrayerCategoryPartialDto>();
+            return new Dictionary<string, CategoryModel>();
         }
 
         var filter = Builders<CategoryModel>.Filter.In(c => c.Id, validIds);
         var categories = await _categories.Find(filter).ToListAsync(ct);
 
-        return categories.ToDictionary(
-            c => c.Id!,
-            c => new PrayerCategoryPartialDto(c.Id!, c.Name, c.ColorHex));
+        return categories
+            .Where(c => c.Id is not null)
+            .ToDictionary(c => c.Id!, c => c);
     }
 
+    // Só expõe categorias públicas ou do próprio usuário que está vendo (igual ao ArangoDB).
     private static List<PrayerCategoryPartialDto> ResolveCategories(
-        IReadOnlyCollection<string> categoryIds, IReadOnlyDictionary<string, PrayerCategoryPartialDto> map)
+        IReadOnlyCollection<string> categoryIds,
+        IReadOnlyDictionary<string, CategoryModel> map,
+        string? visibleTo)
         => categoryIds
             .Where(map.ContainsKey)
             .Select(id => map[id])
+            .Where(c => visibleTo is null || c.IsPublic || string.Equals(c.OwnerUsername, visibleTo, StringComparison.Ordinal))
+            .Select(c => new PrayerCategoryPartialDto(c.Id!, c.Name, c.ColorHex))
             .ToList();
+
+    private static List<PrayerCategoryPartialDto> ToCategoryDtos(IEnumerable<CategoryModel> categories)
+        => categories.Select(c => new PrayerCategoryPartialDto(c.Id!, c.Name, c.ColorHex)).ToList();
 
     private async Task<List<string>> GetAcceptedFriendUserNamesAsync(string userName, CancellationToken ct)
     {
