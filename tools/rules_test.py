@@ -194,7 +194,7 @@ def main():
     check("timeline do autor traz a propria oracao reagida", p1 in tl_a, list(tl_a))
     inter = (tl_a.get(p1) or {}).get("interactions") or []
     check("apoio e idempotente (1 interacao apos 2 chamadas)", len(inter) == 1, len(inter))
-    check("interacao traz tipo e usuario", inter and inter[0].get("type") == "Support" and inter[0].get("userName") == B.name, inter[:1])
+    check("interacao traz tipo e usuario", inter and inter[0].get("type") == "Support" and (inter[0].get("user") or {}).get("userName") == B.name, inter[:1])
     check("timeline: oracao privada do autor continua fora", p2 not in tl_a)
     call("POST", f"/prayers/{p2}/support", A.token)   # apoiar a propria privada nao vale
     check("apoio em oracao PRIVADA nao cria interacao", p2 not in {i["id"] for i in timeline(A)})
