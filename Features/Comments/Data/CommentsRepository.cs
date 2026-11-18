@@ -18,6 +18,7 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
             LET parent = DOCUMENT(@parentId)
             FILTER parent != null
+            FILTER parent.DeletedAt == null
 
             INSERT @comment INTO {CollectionName}
             LET newComment = NEW
@@ -87,9 +88,15 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
                 SORT comment.CreatedAt DESC
                 LIMIT @offset, @pageSize
 
+                // Quem reagiu (nomes de usuário), calculado só para os comentários da página.
+                LET reactedBy = (
+                    FOR reactor IN 1..1 INBOUND comment._id {ArangoDbEdges.ReactedBy}
+                        RETURN reactor.UserName
+                )
+
                 RETURN {{
                     AuthorProfileModel: author,
-                    CommentModel: comment,
+                    CommentModel: MERGE(comment, {{ ReactedBy: reactedBy }}),
                     DirectCommentsCount: directCommentsCount
                 }}
         ";
@@ -136,9 +143,14 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
                     RETURN 1
             )
 
+            LET reactedBy = (
+                FOR reactor IN 1..1 INBOUND comment._id {ArangoDbEdges.ReactedBy}
+                    RETURN reactor.UserName
+            )
+
             RETURN {{
                 AuthorProfileModel: author,
-                CommentModel: comment,
+                CommentModel: MERGE(comment, {{ ReactedBy: reactedBy }}),
                 DirectCommentsCount: directCommentsCount
             }}
         ";
@@ -168,6 +180,12 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
             LET author = DOCUMENT(commentToUpdate.AuthorId)
 
+            // Calculado antes do UPDATE: uma travessia depois de modificar a coleção não é permitida.
+            LET reactedBy = (
+                FOR reactor IN 1..1 INBOUND commentToUpdate._id {ArangoDbEdges.ReactedBy}
+                    RETURN reactor.UserName
+            )
+
             UPDATE commentToUpdate WITH {{
                 Content: @content,
                 UpdatedAt: DATE_ISO8601(DATE_NOW())
@@ -176,7 +194,7 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
             RETURN {{
                 AuthorProfileModel: author,
-                CommentModel: updatedComment,
+                CommentModel: MERGE(updatedComment, {{ ReactedBy: reactedBy }}),
             }}
         ";
 
@@ -222,8 +240,14 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
     public async Task AddReactionAsync(string commentId, string reactorId, CancellationToken ct)
     {
+        // O serviço informa o nome de usuário de quem reage (a mesma convenção da abordagem MongoDB).
         const string query = $@"
-            LET user = DOCUMENT(@reactorId)
+            LET user = FIRST(
+                FOR u IN {ArangoDbCollections.Users}
+                    FILTER u.UserName == @reactorUserName
+                    LIMIT 1
+                    RETURN u
+            )
             FILTER user != null
 
             LET comment = DOCUMENT(@commentId)
@@ -252,7 +276,7 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
         var bindVars = new Dictionary<string, object>
         {
-            { "reactorId", ArangoDbUtils.BuildArangoDbId(reactorId, ArangoDbCollections.Users)! },
+            { "reactorUserName", reactorId },
             { "commentId", ArangoDbUtils.BuildArangoDbId(commentId, ArangoDbCollections.Comments)! }
         };
 
@@ -262,7 +286,12 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
     public async Task RemoveReactionAsync(string commentId, string reactorId, CancellationToken ct)
     {
         var query = $@"
-            LET user = DOCUMENT(@reactorId)
+            LET user = FIRST(
+                FOR u IN {ArangoDbCollections.Users}
+                    FILTER u.UserName == @reactorUserName
+                    LIMIT 1
+                    RETURN u
+            )
             FILTER user != null
 
             LET comment = DOCUMENT(@commentId)
@@ -278,7 +307,7 @@ public class CommentsRepository(IArangoDBClient db) : BaseRepository<CommentsMod
 
         var bindVars = new Dictionary<string, object>
         {
-            { "reactorId", ArangoDbUtils.BuildArangoDbId(reactorId, ArangoDbCollections.Users)! },
+            { "reactorUserName", reactorId },
             { "commentId", ArangoDbUtils.BuildArangoDbId(commentId, ArangoDbCollections.Comments)! }
         };
 
