@@ -34,59 +34,82 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
     {
         var offset = (page - 1) * pageSize;
 
-        bool? isPending = status switch
-        {
-            FriendshipStatusEnum.Pending  => true,
-            FriendshipStatusEnum.Accepted => false,
-            _                             => null
-        };
+        // Âncora por igualdade em User.id: a constraint user_id_unique resolve o nó inicial por
+        // NodeUniqueIndexSeek e o custo passa a depender só do grau do nó, não do tamanho da base.
+        // O padrão anterior (`$p IS NULL OR a.id = $p`) não permite seek de índice.
+        var userA = containsUserIds?.UserA;
+        var userB = containsUserIds?.UserB;
 
-        var parameters = new
-        {
-            fromUserId,
-            toUserId,
-            containsUserAId = containsUserIds?.UserA,
-            containsUserBId = containsUserIds?.UserB,
-            isPending,
-            offset,
-            pageSize
-        };
+        var anchorId = userA ?? userB ?? fromUserId ?? toUserId
+            ?? throw new ArgumentException("SearchFriendships exige ao menos um id de usuário como âncora.");
 
-        var dataQuery = $$"""
-            MATCH (a:User)-[f:{{DbEdges.Friendships}}]->(b:User)
-            WHERE
-              ($fromUserId      IS NULL OR a.id = $fromUserId) AND
-              ($toUserId        IS NULL OR b.id = $toUserId) AND
-              ($containsUserAId IS NULL OR a.id = $containsUserAId OR b.id = $containsUserAId) AND
-              ($containsUserBId IS NULL OR a.id = $containsUserBId OR b.id = $containsUserBId) AND
-              ($isPending       IS NULL OR
-                ($isPending = true  AND f.acceptedAt IS NULL) OR
-                ($isPending = false AND f.acceptedAt IS NOT NULL))
-            RETURN f.id AS id, a.id AS fromId, b.id AS toId,
-                   f.requestedAt AS requestedAt, f.acceptedAt AS acceptedAt
-            ORDER BY f.requestedAt DESC
-            SKIP $offset LIMIT $pageSize
+        var conditions = new List<string>();
+        string match;
+        string? otherId = null;
+
+        if (userA is not null || userB is not null)
+        {
+            // Relacionamentos do usuário em qualquer direção; com um segundo id, só os entre os dois.
+            match = $"MATCH (x:User {{id: $anchorId}})-[f:{DbEdges.Friendships}]-(y:User)";
+            if (userA is not null && userB is not null)
+            {
+                otherId = userB;
+                conditions.Add("y.id = $otherId");
+            }
+        }
+        else if (fromUserId is not null)
+        {
+            match = $"MATCH (x:User {{id: $anchorId}})-[f:{DbEdges.Friendships}]->(y:User)";
+            if (toUserId is not null)
+            {
+                otherId = toUserId;
+                conditions.Add("y.id = $otherId");
+            }
+        }
+        else
+        {
+            match = $"MATCH (y:User)-[f:{DbEdges.Friendships}]->(x:User {{id: $anchorId}})";
+        }
+
+        if (status == FriendshipStatusEnum.Pending)
+        {
+            conditions.Add("f.acceptedAt IS NULL");
+        }
+        else if (status == FriendshipStatusEnum.Accepted)
+        {
+            conditions.Add("f.acceptedAt IS NOT NULL");
+        }
+
+        var whereClause = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : string.Empty;
+
+        // Uma única consulta devolve o total e a página (antes eram duas varreduras por chamada).
+        var query = $$"""
+            {{match}}
+            {{whereClause}}
+            WITH f ORDER BY f.requestedAt DESC
+            WITH collect({
+                id: f.id,
+                fromId: startNode(f).id,
+                toId: endNode(f).id,
+                requestedAt: f.requestedAt,
+                acceptedAt: f.acceptedAt
+            }) AS rows
+            RETURN size(rows) AS total, rows[$offset..($offset + $pageSize)] AS page
             """;
 
-        var countQuery = $$"""
-            MATCH (a:User)-[f:{{DbEdges.Friendships}}]->(b:User)
-            WHERE
-              ($fromUserId      IS NULL OR a.id = $fromUserId) AND
-              ($toUserId        IS NULL OR b.id = $toUserId) AND
-              ($containsUserAId IS NULL OR a.id = $containsUserAId OR b.id = $containsUserAId) AND
-              ($containsUserBId IS NULL OR a.id = $containsUserBId OR b.id = $containsUserBId) AND
-              ($isPending       IS NULL OR
-                ($isPending = true  AND f.acceptedAt IS NULL) OR
-                ($isPending = false AND f.acceptedAt IS NOT NULL))
-            RETURN COUNT(*) AS total
-            """;
+        var (edges, total) = await executor.ExecuteReadSingleAsync(
+            query,
+            new { anchorId, otherId, offset, pageSize },
+            record => (
+                Edges: ((IEnumerable<object>)record["page"])
+                    .Cast<IDictionary<string, object>>()
+                    .Select(ReadEdgeFromMap)
+                    .ToList(),
+                Total: record["total"].As<int>()),
+            ct);
 
-        var edges = await executor.ExecuteReadListAsync(dataQuery, parameters, ReadEdge, ct);
         var profiles = await LoadProfilesAsync(edges.SelectMany(e => new[] { e.FromId, e.ToId }), ct);
         var items = edges.Select(e => ToEntity(e, profiles)).ToList();
-
-        var total = await executor.ExecuteReadSingleAsync(
-            countQuery, parameters, record => record["total"].As<int>(), ct);
 
         return (items, total);
     }
@@ -102,8 +125,7 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
         var query = $$"""
             MERGE (a:User {id: $fromUserId})
             MERGE (b:User {id: $toUserId})
-            MERGE (a)-[f:{{DbEdges.Friendships}} {id: $friendshipId}]->(b)
-            ON CREATE SET f.requestedAt = $requestedAt, f.acceptedAt = null
+            CREATE (a)-[f:{{DbEdges.Friendships}} {id: $friendshipId, requestedAt: $requestedAt}]->(b)
             RETURN f.id AS id, a.id AS fromId, b.id AS toId,
                    f.requestedAt AS requestedAt, f.acceptedAt AS acceptedAt
             """;
@@ -221,7 +243,10 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
             
             MATCH (me)-[r1:{{{DbEdges.Friendships}}}]-(mutual:User)-[r2:{{{DbEdges.Friendships}}}]-(candidate)
             WHERE r1.acceptedAt IS NOT NULL AND r2.acceptedAt IS NOT NULL
-            
+
+            WITH candidate, mutual, r1
+            ORDER BY r1.acceptedAt ASC
+
             WITH candidate, COUNT(DISTINCT mutual) AS mutualFriendsCount, COLLECT(DISTINCT mutual)[0] AS oldestMutualFriend
             ORDER BY mutualFriendsCount DESC
             SKIP $offset LIMIT $pageSize
@@ -285,6 +310,14 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
         ToId: record["toId"].As<string>(),
         RequestedAt: Neo4JValueConverter.ToDateTime(record["requestedAt"]),
         AcceptedAt: Neo4JValueConverter.ToNullableDateTime(record["acceptedAt"]));
+
+    // Mesma projeção, lida de um mapa devolvido dentro de uma lista (collect) da consulta de busca.
+    private static FriendshipEdgeRaw ReadEdgeFromMap(IDictionary<string, object> row) => new(
+        Id: row["id"].As<string>(),
+        FromId: row["fromId"].As<string>(),
+        ToId: row["toId"].As<string>(),
+        RequestedAt: Neo4JValueConverter.ToDateTime(row["requestedAt"]),
+        AcceptedAt: Neo4JValueConverter.ToNullableDateTime(row.TryGetValue("acceptedAt", out var accepted) ? accepted : null));
 
     private FriendshipRequestEntity ToEntity(
         FriendshipEdgeRaw edge, IReadOnlyDictionary<string, ProfileModel> profiles) => new(

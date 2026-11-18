@@ -13,7 +13,11 @@ public static class Neo4JServicesExtensions
 
         var driver = GraphDatabase.Driver(
             settings.Uri,
-            AuthTokens.Basic(settings.User, settings.Password)
+            AuthTokens.Basic(settings.User, settings.Password),
+            config => config
+                .WithMaxConnectionPoolSize(settings.MaxConnectionPoolSize)
+                .WithConnectionAcquisitionTimeout(TimeSpan.FromSeconds(settings.ConnectionAcquisitionTimeoutSeconds))
+                .WithMaxTransactionRetryTime(TimeSpan.FromSeconds(settings.MaxTransactionRetryTimeSeconds))
         );
         services.AddSingleton<IDriver>(driver);
 
