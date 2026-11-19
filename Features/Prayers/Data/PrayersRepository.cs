@@ -13,6 +13,7 @@ using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.Data;
 using EbenezerBackend.Shared.Web.Exceptions;
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using Neo4j.Driver;
 
@@ -264,18 +265,15 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
                 Builders<PrayerModel>.Filter.Eq(p => p.AuthorUsername, viewerUserName),
                 Builders<PrayerModel>.Filter.SizeGt(p => p.Supporters, 0)));
 
-        var models = await _prayers.Find(filter).ToListAsync(ct);
+        // Total e página vêm do MongoDB: só as orações da página saem do servidor.
+        var totalCount = (int)await _prayers.CountDocumentsAsync(filter, cancellationToken: ct);
+        if (totalCount == 0)
+        {
+            return ([], 0);
+        }
 
-        var ordered = models
-            .OrderByDescending(p => ResolveActivityAt(p, viewerUserName))
-            .ToList();
-
-        var totalCount = ordered.Count;
-
-        var pageItems = ordered
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToList();
+        var pageItems = await FindTimelinePageAsync(
+            filter, viewerUserName, Math.Max(0, (page - 1) * pageSize), pageSize, ct);
 
         if (pageItems.Count == 0)
         {
@@ -381,6 +379,47 @@ public class PrayersRepository : BaseRepository<PrayerModel>, IPrayersRepository
         => IsOwn(prayer, viewerUserName) && prayer.Supporters.Count > 0
             ? prayer.Supporters.Max(s => s.ReactedAt)
             : prayer.CreatedAt;
+
+    private const string ActivityAtField = "ActivityAt";
+
+    // Pipeline da timeline: filtra, calcula a data de atividade, ordena e pagina no servidor.
+    // Ordem: ActivityAt desc (mesma regra de ResolveActivityAt), _id desc como desempate.
+    private async Task<List<PrayerModel>> FindTimelinePageAsync(
+        FilterDefinition<PrayerModel> filter, string viewerUserName, int offset, int pageSize, CancellationToken ct)
+    {
+        var renderArgs = new RenderArgs<PrayerModel>(_prayers.DocumentSerializer, BsonSerializer.SerializerRegistry);
+
+        var pipeline = new BsonDocumentStagePipelineDefinition<PrayerModel, PrayerModel>(
+            new[]
+            {
+                new BsonDocument("$match", filter.Render(renderArgs)),
+                new BsonDocument("$addFields", new BsonDocument(ActivityAtField, TimelineActivityExpression(viewerUserName))),
+                new BsonDocument("$sort", new BsonDocument { { ActivityAtField, -1 }, { "_id", -1 } }),
+                new BsonDocument("$skip", offset),
+                new BsonDocument("$limit", pageSize)
+            },
+            _prayers.DocumentSerializer);
+
+        var cursor = await _prayers.AggregateAsync(pipeline, new AggregateOptions { AllowDiskUse = true }, ct);
+
+        return await cursor.ToListAsync(ct);
+    }
+
+    private static BsonDocument TimelineActivityExpression(string viewerUserName) => new("$cond", new BsonArray
+    {
+        new BsonDocument("$and", new BsonArray
+        {
+            new BsonDocument("$eq", new BsonArray { "$" + nameof(PrayerModel.AuthorUsername), viewerUserName }),
+            new BsonDocument("$gt", new BsonArray
+            {
+                new BsonDocument("$size", new BsonDocument("$ifNull",
+                    new BsonArray { "$" + nameof(PrayerModel.Supporters), new BsonArray() })),
+                0
+            })
+        }),
+        new BsonDocument("$max", "$" + nameof(PrayerModel.Supporters) + "." + nameof(PrayerSupportReactionModel.ReactedAt)),
+        "$" + nameof(PrayerModel.CreatedAt)
+    });
 
     private async Task<List<ListPrayerRepositoryResponseDto>> ToListResponsesAsync(
         IReadOnlyCollection<PrayerModel> prayers, string viewerUserName, CancellationToken ct)
