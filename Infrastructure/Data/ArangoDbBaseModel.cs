@@ -1,13 +1,14 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Text.Json.Serialization;
 using EbenezerBackend.Shared.CustomAttributes;
-using Newtonsoft.Json;
 
 namespace EbenezerBackend.Infrastructure.Data;
 
 public abstract class ArangoDbBaseModel
 {
-    [JsonProperty("_key", NullValueHandling = NullValueHandling.Ignore)]
+    [JsonPropertyName("_key")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public required string? Key { get; set; }
 
     public string Id => $"{CollectionName}/{Key}";

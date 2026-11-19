@@ -25,7 +25,8 @@ public static class DatabaseServicesExtensions
                             arangoSettings.Password
                         );
         
-        services.AddSingleton<IArangoDBClient>(new ArangoDBClient(transport));
+        // Serialização System.Text.Json: o padrão do driver (Newtonsoft) recria o contrato JSON a cada consulta.
+        services.AddSingleton<IArangoDBClient>(new ArangoDBClient(transport, new SystemTextJsonApiClientSerialization()));
         services.AddScoped<DatabaseInitializer>();
 
         return services;
