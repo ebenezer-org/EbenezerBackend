@@ -283,7 +283,8 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
         var offset = (page - 1) * pageSize;
 
         var dataQuery = $$"""
-            MATCH (a:User {id: $userIdA})-[:{{DbEdges.Friendships}}]-(mutual:User)-[:{{DbEdges.Friendships}}]-(b:User {id: $userIdB})
+            MATCH (a:User {id: $userIdA})-[r1:{{DbEdges.Friendships}}]-(mutual:User)-[r2:{{DbEdges.Friendships}}]-(b:User {id: $userIdB})
+            WHERE r1.acceptedAt IS NOT NULL AND r2.acceptedAt IS NOT NULL
             RETURN DISTINCT mutual.id AS id
             """;
 
