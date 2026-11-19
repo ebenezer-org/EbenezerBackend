@@ -43,7 +43,7 @@ services:
     restart: on-failure
 
   mongodb:
-    image: mongo:8.0
+    image: mongo:8.0.38
     container_name: ebenezer-mongodb
     memswap_limit: ${MONGODB_MEM:-3g}
     deploy:
@@ -68,7 +68,7 @@ services:
       start_period: 20s
 
   neo4j:
-    image: neo4j:5.26-community
+    image: neo4j:5.26.33-community
     container_name: ebenezer-neo4j
     memswap_limit: ${NEO4J_MEM:-5g}
     deploy:
