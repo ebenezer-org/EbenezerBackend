@@ -3,14 +3,14 @@ using EbenezerBackend.Features.Friendships.Domain.Entities;
 using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.CustomAttributes;
 using EbenezerBackend.Shared.Data;
-using Newtonsoft.Json;
+using System.Text.Json.Serialization;
 
 namespace EbenezerBackend.Features.Friendships.Data.Models;
 
 [CollectionName(ArangoDbEdges.Friendships)]
 public class FriendshipEdgeModel(string fromUserName, string toUserName, string fromName, string toName, DateTime requestedAt, DateTime? acceptedAt) : ArangoDbBaseModel, IBaseModel<FriendshipEdgeModel, FriendshipRequestEntity>
 {
-    [JsonProperty("_from")]
+    [JsonPropertyName("_from")]
     public string FromId { get; set; } = string.Empty;
     
     [JsonIgnore]
@@ -20,7 +20,7 @@ public class FriendshipEdgeModel(string fromUserName, string toUserName, string 
         set => FromId = $"{ArangoDbCollections.Users}/{value}";
     }
 
-    [JsonProperty("_to")]
+    [JsonPropertyName("_to")]
     public string ToId { get; set; } = string.Empty;
 
     [JsonIgnore]

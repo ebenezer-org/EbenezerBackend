@@ -3,7 +3,6 @@ using EbenezerBackend.Features.Auth.Domain.Entities;
 using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.CustomAttributes;
 using EbenezerBackend.Shared.Data;
-using Newtonsoft.Json;
 
 namespace EbenezerBackend.Features.Auth.Data.Models;
 
