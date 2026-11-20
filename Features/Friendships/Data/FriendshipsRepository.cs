@@ -6,6 +6,8 @@ using EbenezerBackend.Features.Friendships.Domain.Repositories.Dtos;
 using EbenezerBackend.Features.Profile.Data.Models;
 using EbenezerBackend.Infrastructure.Data;
 using EbenezerBackend.Shared.Data;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 using Neo4j.Driver;
 
@@ -280,7 +282,7 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
     public async Task<(IReadOnlyCollection<FriendProfileRepositoryDto> Items, int TotalCount)> GetMutualFriendsAsync(
         string userIdA, string userIdB, int page, int pageSize, CancellationToken ct)
     {
-        var offset = (page - 1) * pageSize;
+        var offset = Math.Max(0, (page - 1) * pageSize);
 
         var dataQuery = $$"""
             MATCH (a:User {id: $userIdA})-[r1:{{DbEdges.Friendships}}]-(mutual:User)-[r2:{{DbEdges.Friendships}}]-(b:User {id: $userIdB})
@@ -291,19 +293,17 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
         var mutualIds = await executor.ExecuteReadListAsync(
             dataQuery, new { userIdA, userIdB }, record => record["id"].As<string>(), ct);
 
-        var profiles = await LoadProfilesAsync(mutualIds, ct);
+        if (mutualIds.Count == 0)
+        {
+            return ([], 0);
+        }
 
-        var ordered = mutualIds
-            .Select(id => ToProfileDto(id, profiles))
-            .OrderBy(dto => dto.FullName, StringComparer.Ordinal)
-            .ThenBy(dto => dto.UserName, StringComparer.Ordinal)
-            .ThenBy(dto => dto.Id, StringComparer.Ordinal)
-            .ToList();
+        // Ordenação e paginação no MongoDB: só a página de perfis sai do servidor.
+        var filter = Builders<ProfileModel>.Filter.In(p => p.Id, mutualIds);
+        var total = (int)await _users.CountDocumentsAsync(filter, cancellationToken: ct);
+        var profiles = await FindMutualFriendsPageAsync(filter, offset, pageSize, ct);
 
-        var total = ordered.Count;
-        var items = ordered.Skip(offset).Take(pageSize).ToList();
-
-        return (items, total);
+        return (profiles.Select(ToFriendProfileDto).ToList(), total);
     }
 
     private static FriendshipEdgeRaw ReadEdge(IRecord record) => new(
@@ -336,6 +336,54 @@ public class FriendshipsRepository(INeo4JExecutor executor, IMongoDatabase datab
     private static FriendProfileRepositoryDto ToProfileDto(
         string id, IReadOnlyDictionary<string, ProfileModel> profiles) =>
         new(Id: id, FullName: FullNameOf(profiles, id), UserName: UserNameOf(profiles, id));
+
+    // Mesmo nome exibido de FullNameOf: sem nome completo, vale o nome de usuário.
+    private static FriendProfileRepositoryDto ToFriendProfileDto(ProfileModel profile) =>
+        new(Id: profile.Id ?? string.Empty,
+            FullName: string.IsNullOrWhiteSpace(profile.FullName) ? profile.UserName : profile.FullName,
+            UserName: profile.UserName);
+
+    private async Task<List<ProfileModel>> FindMutualFriendsPageAsync(
+        FilterDefinition<ProfileModel> filter, int offset, int pageSize, CancellationToken ct)
+    {
+        var renderArgs = new RenderArgs<ProfileModel>(_users.DocumentSerializer, BsonSerializer.SerializerRegistry);
+
+        var pipeline = new BsonDocumentStagePipelineDefinition<ProfileModel, ProfileModel>(
+            new[]
+            {
+                new BsonDocument("$match", filter.Render(renderArgs)),
+                new BsonDocument("$addFields", new BsonDocument(SortNameField, SortNameExpression())),
+                new BsonDocument("$sort", new BsonDocument
+                {
+                    { SortNameField, 1 },
+                    { nameof(ProfileModel.UserName), 1 },
+                    { "_id", 1 }
+                }),
+                new BsonDocument("$skip", offset),
+                new BsonDocument("$limit", pageSize)
+            },
+            _users.DocumentSerializer);
+
+        var cursor = await _users.AggregateAsync(pipeline, new AggregateOptions { AllowDiskUse = true }, ct);
+
+        return await cursor.ToListAsync(ct);
+    }
+
+    private const string SortNameField = "SortName";
+
+    // Ordem por nome completo (ou nome de usuário, quando o completo está vazio), depois usuário e id.
+    // $trim cobre só espaços ASCII; string.IsNullOrWhiteSpace também aceita espaços Unicode.
+    private static BsonDocument SortNameExpression() => new("$cond", new BsonArray
+    {
+        new BsonDocument("$eq", new BsonArray
+        {
+            new BsonDocument("$trim", new BsonDocument("input",
+                new BsonDocument("$ifNull", new BsonArray { "$" + nameof(ProfileModel.FullName), string.Empty }))),
+            string.Empty
+        }),
+        "$" + nameof(ProfileModel.UserName),
+        "$" + nameof(ProfileModel.FullName)
+    });
 
     private async Task<IReadOnlyDictionary<string, ProfileModel>> LoadProfilesAsync(
         IEnumerable<string> ids, CancellationToken ct)
